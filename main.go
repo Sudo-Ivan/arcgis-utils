@@ -20,7 +20,7 @@ import (
 	"time"
 )
 
-// ANSI Color Codes
+// ANSI color codes for console output.
 const (
 	colorReset  = "\033[0m"
 	colorRed    = "\033[31m"
@@ -30,9 +30,10 @@ const (
 	colorCyan   = "\033[36m"
 )
 
-// Global variable to control color output
+// useColor controls whether colored output is enabled.
 var useColor = true
 
+// FeatureServerMetadata represents the metadata for an ArcGIS Feature Server.
 type FeatureServerMetadata struct {
 	CurrentVersion string  `json:"currentVersion"`
 	Layers         []Layer `json:"layers"`
@@ -45,6 +46,7 @@ type FeatureServerMetadata struct {
 	} `json:"error"`
 }
 
+// Layer represents a layer in an ArcGIS Feature Server or Map Server.
 type Layer struct {
 	ID           interface{}  `json:"id"`
 	Name         string       `json:"name"`
@@ -57,10 +59,12 @@ type Layer struct {
 	} `json:"error"`
 }
 
+// DrawingInfo represents drawing information for a layer.
 type DrawingInfo struct {
 	Renderer *Renderer `json:"renderer"`
 }
 
+// Renderer represents the renderer for a layer.
 type Renderer struct {
 	Type              string             `json:"type"`
 	Field1            string             `json:"field1"`
@@ -69,6 +73,7 @@ type Renderer struct {
 	UniqueValueGroups []UniqueValueGroup `json:"uniqueValueGroups"`
 }
 
+// Symbol represents a symbol used for rendering features.
 type Symbol struct {
 	Type        string  `json:"type"`
 	URL         string  `json:"url"`
@@ -81,11 +86,13 @@ type Symbol struct {
 	Angle       float64 `json:"angle"`
 }
 
+// UniqueValueGroup represents a group of unique values for rendering.
 type UniqueValueGroup struct {
 	Heading string             `json:"heading"`
 	Classes []UniqueValueClass `json:"classes"`
 }
 
+// UniqueValueClass represents a class of unique values for rendering.
 type UniqueValueClass struct {
 	Label       string     `json:"label"`
 	Description string     `json:"description"`
@@ -93,6 +100,7 @@ type UniqueValueClass struct {
 	Symbol      *Symbol    `json:"symbol"`
 }
 
+// FeatureResponse represents the response from a feature query.
 type FeatureResponse struct {
 	Features              []Feature `json:"features"`
 	ExceededTransferLimit bool      `json:"exceededTransferLimit"`
@@ -101,32 +109,38 @@ type FeatureResponse struct {
 	} `json:"error"`
 }
 
+// Feature represents a geographic feature with attributes and geometry.
 type Feature struct {
 	Attributes map[string]interface{} `json:"attributes"`
 	Geometry   interface{}            `json:"geometry"`
 }
 
+// GeoJSON represents a GeoJSON FeatureCollection.
 type GeoJSON struct {
 	Type     string           `json:"type"`
 	CRS      CRS              `json:"crs"`
 	Features []GeoJSONFeature `json:"features"`
 }
 
+// GeoJSONFeature represents a GeoJSON Feature.
 type GeoJSONFeature struct {
 	Type       string                 `json:"type"`
 	Properties map[string]interface{} `json:"properties"`
 	Geometry   interface{}            `json:"geometry"`
 }
 
+// CRS represents a Coordinate Reference System.
 type CRS struct {
 	Type       string   `json:"type"`
 	Properties CRSProps `json:"properties"`
 }
 
+// CRSProps represents Coordinate Reference System properties.
 type CRSProps struct {
 	Name string `json:"name"`
 }
 
+// ItemData represents metadata for an ArcGIS Online item.
 type ItemData struct {
 	ID    string `json:"id"`
 	Name  string `json:"name"`
@@ -138,6 +152,7 @@ type ItemData struct {
 	} `json:"error"`
 }
 
+// WebMapData represents data for an ArcGIS Online Web Map.
 type WebMapData struct {
 	OperationalLayers []OperationalLayer `json:"operationalLayers"`
 	Error             *struct {
@@ -145,6 +160,7 @@ type WebMapData struct {
 	} `json:"error"`
 }
 
+// OperationalLayer represents an operational layer in a Web Map.
 type OperationalLayer struct {
 	ID                string             `json:"id"`
 	Title             string             `json:"title"`
@@ -157,6 +173,7 @@ type OperationalLayer struct {
 	} `json:"featureCollection"`
 }
 
+// FeatureCollectionLayer represents a layer within a FeatureCollection.
 type FeatureCollectionLayer struct {
 	ID              int                    `json:"id"`
 	LayerDefinition map[string]interface{} `json:"layerDefinition"`
@@ -165,6 +182,7 @@ type FeatureCollectionLayer struct {
 	} `json:"featureSet"`
 }
 
+// MapServiceMetadata represents the metadata for an ArcGIS Map Service.
 type MapServiceMetadata struct {
 	Name        string            `json:"name"`
 	Layers      []MapServiceLayer `json:"layers"`
@@ -174,6 +192,7 @@ type MapServiceMetadata struct {
 	} `json:"error"`
 }
 
+// MapServiceLayer represents a layer in an ArcGIS Map Service.
 type MapServiceLayer struct {
 	ID            int    `json:"id"`
 	Name          string `json:"name"`
@@ -183,6 +202,7 @@ type MapServiceLayer struct {
 	SubLayerIds   []int  `json:"subLayerIds"`
 }
 
+// AvailableLayerInfo stores information about a layer available for processing.
 type AvailableLayerInfo struct {
 	ID                    string
 	Name                  string
@@ -194,6 +214,7 @@ type AvailableLayerInfo struct {
 	FeatureCollectionData *OperationalLayer
 }
 
+// layersToProcess stores the layers selected for processing.
 var layersToProcess = make(map[string]AvailableLayerInfo)
 
 func main() {
@@ -338,6 +359,7 @@ func main() {
 	}
 }
 
+// printColor prints a message to the console with the specified color.
 func printColor(colorCode string, message string) {
 	if useColor {
 		fmt.Printf("%s%s%s\n", colorCode, message, colorReset)
@@ -346,28 +368,35 @@ func printColor(colorCode string, message string) {
 	}
 }
 
+// printInfo prints an informational message to the console.
 func printInfo(message string) {
 	printColor(colorCyan, message)
 }
 
+// printSuccess prints a success message to the console.
 func printSuccess(message string) {
 	printColor(colorGreen, message)
 }
 
+// printWarning prints a warning message to the console.
 func printWarning(message string) {
 	printColor(colorYellow, message)
 }
 
+// printError prints an error message to the console.
 func printError(message string) {
 	printColor(colorRed, message)
 }
 
+// httpClient is a reusable HTTP client with a timeout.
 var httpClient *http.Client
 
+// isArcGISOnlineItemURL checks if a URL points to an ArcGIS Online item page.
 func isArcGISOnlineItemURL(rawURL string) bool {
 	return strings.Contains(strings.ToLower(rawURL), "arcgis.com/home/item.html")
 }
 
+// fetchAndDecode fetches data from a URL and decodes it into the target interface.
 func fetchAndDecode(urlStr string, target interface{}) error {
 	req, err := http.NewRequest("GET", urlStr, nil)
 	if err != nil {
@@ -394,6 +423,7 @@ func fetchAndDecode(urlStr string, target interface{}) error {
 	return nil
 }
 
+// handleArcGISOnlineItem handles processing for an ArcGIS Online item URL.
 func handleArcGISOnlineItem(itemPageURL string, selectAll bool) error {
 	re := regexp.MustCompile(`id=([a-f0-9]+)`)
 	matches := re.FindStringSubmatch(itemPageURL)
@@ -434,6 +464,7 @@ func handleArcGISOnlineItem(itemPageURL string, selectAll bool) error {
 	}
 }
 
+// handleWebMap handles processing for an ArcGIS Online Web Map item.
 func handleWebMap(itemID string, selectAll bool) error {
 	webMapDataURL := fmt.Sprintf("https://www.arcgis.com/sharing/rest/content/items/%s/data?f=json", itemID)
 	printInfo(fmt.Sprintf("  Fetching Web Map data: %s", webMapDataURL))
@@ -461,6 +492,7 @@ func handleWebMap(itemID string, selectAll bool) error {
 	return selectAndAddLayers(availableLayers, selectAll)
 }
 
+// processOperationalLayer recursively processes operational layers in a Web Map.
 func processOperationalLayer(opLayer OperationalLayer, parentPath []string, availableLayers *[]AvailableLayerInfo) {
 	currentPath := append(parentPath, opLayer.Title)
 
@@ -547,6 +579,7 @@ func processOperationalLayer(opLayer OperationalLayer, parentPath []string, avai
 	}
 }
 
+// handleMapServerURL handles processing for an ArcGIS Map Server URL.
 func handleMapServerURL(mapServerURL string, selectAll bool) error {
 	layers, err := fetchServiceLayers(mapServerURL, "MapServer")
 	if err != nil {
@@ -560,6 +593,7 @@ func handleMapServerURL(mapServerURL string, selectAll bool) error {
 	return selectAndAddLayers(layers, selectAll)
 }
 
+// handleFeatureServerURL handles processing for an ArcGIS Feature Server URL.
 func handleFeatureServerURL(featureServerURL string, selectAll bool) error {
 	layerID := ""
 	parts := strings.Split(featureServerURL, "/")
@@ -592,6 +626,7 @@ func handleFeatureServerURL(featureServerURL string, selectAll bool) error {
 	}
 }
 
+// fetchServiceLayers fetches the layers from an ArcGIS Feature Server or Map Server.
 func fetchServiceLayers(serviceURL string, serviceType string) ([]AvailableLayerInfo, error) {
 	fetchURL := fmt.Sprintf("%s?f=json", serviceURL)
 	printInfo(fmt.Sprintf("    Fetching service metadata: %s", fetchURL))
@@ -697,6 +732,7 @@ func fetchServiceLayers(serviceURL string, serviceType string) ([]AvailableLayer
 	return availableLayers, nil
 }
 
+// selectAndAddLayers prompts the user to select layers from a list and adds them to the processing queue.
 func selectAndAddLayers(availableLayers []AvailableLayerInfo, selectAll bool) error {
 	if selectAll {
 		printInfo("  --select-all flag detected, selecting all found Feature Layers.")
@@ -760,6 +796,7 @@ func selectAndAddLayers(availableLayers []AvailableLayerInfo, selectAll bool) er
 	return nil
 }
 
+// processSelectedLayer processes a single selected layer and exports it to the specified format.
 func processSelectedLayer(layerInfo AvailableLayerInfo, format, outputDir string, overwrite, skipExisting bool, prefix string) error {
 	metadataURL := fmt.Sprintf("%s/%s?f=json", layerInfo.ServiceURL, layerInfo.ID)
 	var layerMetadata Layer
@@ -879,19 +916,39 @@ func processSelectedLayer(layerInfo AvailableLayerInfo, format, outputDir string
 	return nil
 }
 
+// normalizeArcGISURL normalizes an ArcGIS URL.
 func normalizeArcGISURL(rawURL string) string {
 	lowerURL := strings.ToLower(rawURL)
-	if strings.Contains(lowerURL, "arcgis.com") || strings.Contains(lowerURL, "/rest/services") || strings.Contains(lowerURL, "/arcgis/rest") {
+	isArcGISService := strings.Contains(lowerURL, "/rest/services") || strings.Contains(lowerURL, "/arcgis/rest")
+	isAGOLItem := strings.Contains(lowerURL, "arcgis.com/home/item.html")
+
+	if !isArcGISService && !isAGOLItem {
+		// If it doesn't look like an ArcGIS service or item URL, only ensure it has a scheme
 		u, err := url.Parse(rawURL)
-		if err != nil {
-			fmt.Printf("Warning: Failed to parse URL for normalization: %v\n", err)
-			return rawURL
+		if err == nil && u.Scheme == "" {
+			// Check if it looks like a domain/path without scheme
+			if strings.Contains(rawURL, ".") && !strings.Contains(rawURL, " ") && !strings.HasPrefix(rawURL, "/") {
+				return "https://" + rawURL
+			}
 		}
+		// Otherwise, return as is or handle parsing errors if needed
+		return rawURL
+	}
 
-		if u.Scheme == "" {
-			u.Scheme = "https"
-		}
+	// If it IS an ArcGIS service URL (or AGOL item URL, though AGOL items are less likely to need scheme added)
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		fmt.Printf("Warning: Failed to parse URL for normalization: %v\n", err)
+		return rawURL // Return original on parse error
+	}
 
+	// Ensure scheme (only if it doesn't exist)
+	if u.Scheme == "" {
+		u.Scheme = "https"
+	}
+
+	if isArcGISService {
+		// Normalize path casing only for service URLs
 		pathParts := strings.Split(strings.Trim(u.Path, "/"), "/")
 		for i, part := range pathParts {
 			lowerPart := strings.ToLower(part)
@@ -907,37 +964,44 @@ func normalizeArcGISURL(rawURL string) string {
 				pathParts[i] = "MapServer"
 			}
 		}
-		u.Path = "/" + strings.Join(pathParts, "/")
-
-		if len(u.Path) > 1 && strings.HasSuffix(u.Path, "/") {
-			u.Path = u.Path[:len(u.Path)-1]
+		// Reconstruct path, respecting if original had leading slash
+		if strings.HasPrefix(u.Path, "/") {
+			u.Path = "/" + strings.Join(pathParts, "/")
+		} else {
+			u.Path = strings.Join(pathParts, "/")
 		}
 
-		q := u.Query()
-		q.Del("f")
-		u.RawQuery = q.Encode()
+		// Handle trailing slashes more carefully
+		lowerPathEnd := ""
+		if len(pathParts) > 0 {
+			lowerPathEnd = strings.ToLower(pathParts[len(pathParts)-1])
+		}
 
-		lowerPath := strings.ToLower(u.Path)
-		if strings.HasSuffix(lowerPath, "/mapserver") || strings.HasSuffix(lowerPath, "/featureserver") {
+		// Check if it's a base service URL
+		isBaseServiceURL := lowerPathEnd == "mapserver" || lowerPathEnd == "featureserver"
+
+		if isBaseServiceURL {
+			// Ensure base service URLs end with a slash
 			if !strings.HasSuffix(u.Path, "/") {
 				u.Path += "/"
 			}
 		} else {
+			// Remove trailing slash if it's not a base service URL
 			if len(u.Path) > 1 && strings.HasSuffix(u.Path, "/") {
 				u.Path = u.Path[:len(u.Path)-1]
 			}
 		}
 
-		return u.String()
+		// Remove ?f= query parameter
+		q := u.Query()
+		q.Del("f")
+		u.RawQuery = q.Encode()
 	}
-	u, err := url.Parse(rawURL)
-	if err == nil && u.Scheme == "" {
-		u.Scheme = "https"
-		return u.String()
-	}
-	return rawURL
+
+	return u.String()
 }
 
+// isValidHTTPURL checks if a URL is a valid HTTP or HTTPS URL.
 func isValidHTTPURL(rawURL string) bool {
 	u, err := url.Parse(rawURL)
 	if err != nil {
@@ -946,6 +1010,7 @@ func isValidHTTPURL(rawURL string) bool {
 	return u.Scheme == "http" || u.Scheme == "https"
 }
 
+// fetchFeatures fetches features from an ArcGIS FeatureServer layer.
 func fetchFeatures(baseURL, layerID string) ([]Feature, error) {
 	queryURL := fmt.Sprintf("%s/%s/query", baseURL, layerID)
 	u, _ := url.Parse(queryURL)
@@ -996,6 +1061,7 @@ func fetchFeatures(baseURL, layerID string) ([]Feature, error) {
 	return featureResp.Features, nil
 }
 
+// convertToGeoJSON converts a slice of Feature structs to a GeoJSON FeatureCollection.
 func convertToGeoJSON(features []Feature) (*GeoJSON, error) {
 	geoJSON := GeoJSON{
 		Type: "FeatureCollection",
@@ -1098,6 +1164,7 @@ func convertToGeoJSON(features []Feature) (*GeoJSON, error) {
 	return &geoJSON, nil
 }
 
+// marshalGeoJSON marshals a GeoJSON struct into a JSON string.
 func marshalGeoJSON(geoJSON *GeoJSON, layerName string) (string, error) {
 	data, err := json.MarshalIndent(geoJSON, "", "  ")
 	if err != nil {
@@ -1106,6 +1173,7 @@ func marshalGeoJSON(geoJSON *GeoJSON, layerName string) (string, error) {
 	return string(data), nil
 }
 
+// convertGeoJSONToKML converts a GeoJSON FeatureCollection to a KML string.
 func convertGeoJSONToKML(geoJSON *GeoJSON, layerName string) (string, error) {
 	var placemarks strings.Builder
 	for _, feature := range geoJSON.Features {
@@ -1182,6 +1250,7 @@ func convertGeoJSONToKML(geoJSON *GeoJSON, layerName string) (string, error) {
 	return kml, nil
 }
 
+// convertGeoJSONToGPX converts a GeoJSON FeatureCollection to a GPX string.
 func convertGeoJSONToGPX(geoJSON *GeoJSON, layerName string) (string, error) {
 	var waypoints strings.Builder
 	var tracks strings.Builder
@@ -1259,6 +1328,7 @@ func convertGeoJSONToGPX(geoJSON *GeoJSON, layerName string) (string, error) {
 	return gpx, nil
 }
 
+// getFeatureName extracts a suitable name from a GeoJSON feature's properties.
 func getFeatureName(feature GeoJSONFeature) string {
 	props := feature.Properties
 	for _, key := range []string{"name", "Name", "NAME", "title", "Title", "TITLE", "OBJECTID", "FID"} {
@@ -1269,6 +1339,7 @@ func getFeatureName(feature GeoJSONFeature) string {
 	return "Feature"
 }
 
+// formatProperties formats a map of properties into a string.
 func formatProperties(props map[string]interface{}, separator ...string) string {
 	sep := "<br>"
 	if len(separator) > 0 {
@@ -1284,6 +1355,7 @@ func formatProperties(props map[string]interface{}, separator ...string) string 
 	return strings.Join(parts, sep)
 }
 
+// escapeXML escapes XML special characters in a string.
 func escapeXML(s string) string {
 	return strings.NewReplacer(
 		"&", "&amp;",
@@ -1295,7 +1367,7 @@ func escapeXML(s string) string {
 	).Replace(s)
 }
 
-// Function to convert geometry interface to WKT string
+// geometryToWKT converts a geometry interface to a WKT string.
 func geometryToWKT(geometry interface{}) string {
 	if geometry == nil {
 		return ""
@@ -1365,7 +1437,7 @@ func geometryToWKT(geometry interface{}) string {
 	return ""
 }
 
-// Function to convert features to CSV string
+// convertFeaturesToCSV converts a slice of Feature structs to a CSV string.
 func convertFeaturesToCSV(features []Feature) (string, error) {
 	if len(features) == 0 {
 		return "", fmt.Errorf("no features to convert to CSV")
@@ -1417,7 +1489,7 @@ func convertFeaturesToCSV(features []Feature) (string, error) {
 	return buf.String(), nil
 }
 
-// Function to convert features to a formatted text string
+// convertFeaturesToText converts a slice of Feature structs to a formatted text string.
 func convertFeaturesToText(features []Feature, layerName string) (string, error) {
 	if len(features) == 0 {
 		return "", fmt.Errorf("no features to convert to text")
