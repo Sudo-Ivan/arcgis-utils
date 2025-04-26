@@ -84,3 +84,7 @@ This will create an executable named `arcgis-utils` (or `arcgis-utils.exe` on Wi
 ```bash
 ./arcgis-utils -url https://www.arcgis.com/home/item.html?id=a12b34c56d78e90f1234567890abcdef -skip-existing
 ```
+
+## License
+
+MIT License
