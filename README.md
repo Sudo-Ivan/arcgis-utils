@@ -28,6 +28,7 @@ A command-line tool written in Go to download data from various **public** ArcGI
 - [ ] Versioning
 - [ ] ArcGIS API Support
 - [ ] Breakup codebase into multiple files
+- [ ] Custom Symbology and Image Support from ArcGIS Layers
 
 ## Installation
 
