@@ -127,6 +127,7 @@ type GeoJSONFeature struct {
 	Type       string                 `json:"type"`
 	Properties map[string]interface{} `json:"properties"`
 	Geometry   interface{}            `json:"geometry"`
+	Symbol     *Symbol                `json:"symbol,omitempty"`
 }
 
 // CRS represents a Coordinate Reference System.
@@ -227,6 +228,7 @@ func main() {
 	skipExistingPtr := flag.Bool("skip-existing", false, "Skip processing if output file already exists")
 	prefixPtr := flag.String("prefix", "", "Prefix for output filenames")
 	timeoutPtr := flag.Int("timeout", 30, "HTTP request timeout in seconds")
+	excludeSymbolsPtr := flag.Bool("exclude-symbols", false, "Exclude symbol information from output")
 
 	flag.Parse()
 
@@ -319,11 +321,12 @@ func main() {
 		overwriteCopy := *overwritePtr
 		skipExistingCopy := *skipExistingPtr
 		prefixCopy := *prefixPtr
+		excludeSymbolsCopy := *excludeSymbolsPtr
 
 		go func() {
 			defer wg.Done()
 			printInfo(fmt.Sprintf("Processing Layer: %s (ID: %s)", layerInfoCopy.Name, layerInfoCopy.ID))
-			err := processSelectedLayer(layerInfoCopy, formatCopy, outputDirCopy, overwriteCopy, skipExistingCopy, prefixCopy)
+			err := processSelectedLayer(layerInfoCopy, formatCopy, outputDirCopy, overwriteCopy, skipExistingCopy, prefixCopy, excludeSymbolsCopy)
 			if err != nil {
 				if err.Error() == "skipped existing file" {
 					printWarning(fmt.Sprintf("  Skipped layer %s (output file exists).", layerInfoCopy.Name))
@@ -797,7 +800,7 @@ func selectAndAddLayers(availableLayers []AvailableLayerInfo, selectAll bool) er
 }
 
 // processSelectedLayer processes a single selected layer and exports it to the specified format.
-func processSelectedLayer(layerInfo AvailableLayerInfo, format, outputDir string, overwrite, skipExisting bool, prefix string) error {
+func processSelectedLayer(layerInfo AvailableLayerInfo, format, outputDir string, overwrite, skipExisting bool, prefix string, excludeSymbols bool) error {
 	metadataURL := fmt.Sprintf("%s/%s?f=json", layerInfo.ServiceURL, layerInfo.ID)
 	var layerMetadata Layer
 	err := fetchAndDecode(metadataURL, &layerMetadata)
@@ -822,6 +825,46 @@ func processSelectedLayer(layerInfo AvailableLayerInfo, format, outputDir string
 			return fmt.Errorf("no features found")
 		}
 		return fmt.Errorf("failed to fetch features: %v", err)
+	}
+
+	// Add symbol information to features if available in layer metadata and not excluded
+	if !excludeSymbols && layerMetadata.DrawingInfo != nil && layerMetadata.DrawingInfo.Renderer != nil {
+		renderer := layerMetadata.DrawingInfo.Renderer
+
+		// Handle default symbol
+		if renderer.DefaultSymbol != nil {
+			for i := range features {
+				if features[i].Attributes == nil {
+					features[i].Attributes = make(map[string]interface{})
+				}
+				features[i].Attributes["symbol"] = renderer.DefaultSymbol
+			}
+		}
+
+		// Handle unique value renderer
+		if renderer.Type == "uniqueValue" && len(renderer.UniqueValueGroups) > 0 {
+			for _, group := range renderer.UniqueValueGroups {
+				for _, class := range group.Classes {
+					if class.Symbol != nil {
+						for i := range features {
+							if features[i].Attributes == nil {
+								features[i].Attributes = make(map[string]interface{})
+							}
+							// Check if feature matches this class's values
+							for _, valueSet := range class.Values {
+								if len(valueSet) > 0 {
+									fieldValue := features[i].Attributes[renderer.Field1]
+									if fieldValue != nil && fmt.Sprintf("%v", fieldValue) == valueSet[0] {
+										features[i].Attributes["symbol"] = class.Symbol
+										break
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
 	}
 
 	var data string
@@ -1151,6 +1194,25 @@ func convertToGeoJSON(features []Feature) (*GeoJSON, error) {
 		if geoJSONFeature.Geometry != nil {
 			geoJSONFeature.Type = "Feature"
 			geoJSONFeature.Properties = feature.Attributes
+
+			// Add symbol information if available in attributes
+			if symbolData, ok := feature.Attributes["symbol"]; ok {
+				if symbolMap, ok := symbolData.(map[string]interface{}); ok {
+					symbol := &Symbol{
+						Type:        getString(symbolMap, "type"),
+						URL:         getString(symbolMap, "url"),
+						ImageData:   getString(symbolMap, "imageData"),
+						ContentType: getString(symbolMap, "contentType"),
+						Width:       getInt(symbolMap, "width"),
+						Height:      getInt(symbolMap, "height"),
+						XOffset:     getInt(symbolMap, "xoffset"),
+						YOffset:     getInt(symbolMap, "yoffset"),
+						Angle:       getFloat(symbolMap, "angle"),
+					}
+					geoJSONFeature.Symbol = symbol
+				}
+			}
+
 			geoJSON.Features = append(geoJSON.Features, geoJSONFeature)
 		} else if feature.Attributes != nil && len(feature.Attributes) > 0 {
 			printWarning(fmt.Sprintf("  Warning: Feature found with attributes but no convertible geometry. Skipping feature."))
@@ -1162,6 +1224,34 @@ func convertToGeoJSON(features []Feature) (*GeoJSON, error) {
 	}
 
 	return &geoJSON, nil
+}
+
+// Helper functions to safely extract values from map[string]interface{}
+func getString(m map[string]interface{}, key string) string {
+	if val, ok := m[key]; ok {
+		if str, ok := val.(string); ok {
+			return str
+		}
+	}
+	return ""
+}
+
+func getInt(m map[string]interface{}, key string) int {
+	if val, ok := m[key]; ok {
+		if num, ok := val.(float64); ok {
+			return int(num)
+		}
+	}
+	return 0
+}
+
+func getFloat(m map[string]interface{}, key string) float64 {
+	if val, ok := m[key]; ok {
+		if num, ok := val.(float64); ok {
+			return num
+		}
+	}
+	return 0
 }
 
 // marshalGeoJSON marshals a GeoJSON struct into a JSON string.

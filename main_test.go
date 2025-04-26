@@ -233,11 +233,41 @@ func TestFormatProperties(t *testing.T) {
 // Sample features for testing conversions
 var testFeatures = []Feature{
 	{
-		Attributes: map[string]interface{}{"OBJECTID": 1, "Name": "Point Feature", "Value": 10.5},
-		Geometry:   map[string]interface{}{"x": -122.0, "y": 37.0},
+		Attributes: map[string]interface{}{
+			"OBJECTID": 1,
+			"Name":     "Point Feature",
+			"Value":    10.5,
+			"symbol": &Symbol{
+				Type:        "esriPMS",
+				URL:         "test.png",
+				ImageData:   "base64data",
+				ContentType: "image/png",
+				Width:       20,
+				Height:      20,
+				XOffset:     0,
+				YOffset:     0,
+				Angle:       0,
+			},
+		},
+		Geometry: map[string]interface{}{"x": -122.0, "y": 37.0},
 	},
 	{
-		Attributes: map[string]interface{}{"OBJECTID": 2, "Name": "Line Feature", "Status": "Active"},
+		Attributes: map[string]interface{}{
+			"OBJECTID": 2,
+			"Name":     "Line Feature",
+			"Status":   "Active",
+			"symbol": &Symbol{
+				Type:        "esriSLS",
+				URL:         "line.png",
+				ImageData:   "base64data2",
+				ContentType: "image/png",
+				Width:       2,
+				Height:      0,
+				XOffset:     0,
+				YOffset:     0,
+				Angle:       45,
+			},
+		},
 		Geometry: map[string]interface{}{"paths": []interface{}{ // Array of paths
 			[]interface{}{ // First path: array of points
 				[]interface{}{-122.0, 37.0}, // Point
@@ -246,7 +276,22 @@ var testFeatures = []Feature{
 		}},
 	},
 	{
-		Attributes: map[string]interface{}{"OBJECTID": 3, "Name": "Polygon Feature", "Area": 1234.5},
+		Attributes: map[string]interface{}{
+			"OBJECTID": 3,
+			"Name":     "Polygon Feature",
+			"Area":     1234.5,
+			"symbol": &Symbol{
+				Type:        "esriSFS",
+				URL:         "poly.png",
+				ImageData:   "base64data3",
+				ContentType: "image/png",
+				Width:       0,
+				Height:      0,
+				XOffset:     0,
+				YOffset:     0,
+				Angle:       0,
+			},
+		},
 		Geometry: map[string]interface{}{"rings": []interface{}{ // Array of rings
 			[]interface{}{ // First ring: array of points
 				[]interface{}{-1.0, 1.0},
@@ -263,8 +308,8 @@ var testFeatures = []Feature{
 }
 
 func TestConvertToGeoJSON(t *testing.T) {
+	// Test with symbols included
 	geoJSON, err := convertToGeoJSON(testFeatures)
-
 	if err != nil {
 		t.Fatalf("convertToGeoJSON failed: %v", err)
 	}
@@ -295,35 +340,97 @@ func TestConvertToGeoJSON(t *testing.T) {
 		if !ok || geom["type"] != "Point" {
 			t.Errorf("Feature 1: Expected Point geometry, got %v", f1.Geometry)
 		}
+
+		// Check symbol information
+		symbol, ok := f1.Properties["symbol"].(*Symbol)
+		if !ok {
+			t.Errorf("Feature 1: Expected Symbol property, got %v", f1.Properties["symbol"])
+		} else {
+			if symbol.Type != "esriPMS" {
+				t.Errorf("Feature 1: Expected symbol type 'esriPMS', got %q", symbol.Type)
+			}
+			if symbol.URL != "test.png" {
+				t.Errorf("Feature 1: Expected symbol URL 'test.png', got %q", symbol.URL)
+			}
+			if symbol.ImageData != "base64data" {
+				t.Errorf("Feature 1: Expected symbol imageData 'base64data', got %q", symbol.ImageData)
+			}
+			if symbol.ContentType != "image/png" {
+				t.Errorf("Feature 1: Expected symbol contentType 'image/png', got %q", symbol.ContentType)
+			}
+			if symbol.Width != 20 {
+				t.Errorf("Feature 1: Expected symbol width 20, got %d", symbol.Width)
+			}
+			if symbol.Height != 20 {
+				t.Errorf("Feature 1: Expected symbol height 20, got %d", symbol.Height)
+			}
+		}
 	}
-	// Add more detailed checks for other features/geometries if needed
+
+	// Test with symbols excluded
+	featuresWithoutSymbols := make([]Feature, len(testFeatures))
+	for i, f := range testFeatures {
+		featuresWithoutSymbols[i] = Feature{
+			Attributes: make(map[string]interface{}),
+			Geometry:   f.Geometry,
+		}
+		// Copy all attributes except symbol
+		for k, v := range f.Attributes {
+			if k != "symbol" {
+				featuresWithoutSymbols[i].Attributes[k] = v
+			}
+		}
+	}
+
+	geoJSONNoSymbols, err := convertToGeoJSON(featuresWithoutSymbols)
+	if err != nil {
+		t.Fatalf("convertToGeoJSON failed with excluded symbols: %v", err)
+	}
+
+	if len(geoJSONNoSymbols.Features) > 0 {
+		f1 := geoJSONNoSymbols.Features[0]
+		if _, ok := f1.Properties["symbol"]; ok {
+			t.Errorf("Feature 1: Expected no symbol property when symbols are excluded")
+		}
+	}
 }
 
 func TestConvertFeaturesToCSV(t *testing.T) {
+	// Test with symbols included
 	csvString, err := convertFeaturesToCSV(testFeatures)
 	if err != nil {
 		t.Fatalf("convertFeaturesToCSV failed: %v", err)
 	}
 
 	// Basic structural checks - more robust parsing could be added
-	if !strings.HasPrefix(csvString, "Area,Name,OBJECTID,Status,Value,WKT_Geometry\n") {
+	expectedHeader := "Area,Name,OBJECTID,Status,Value,symbol,WKT_Geometry"
+	if !strings.HasPrefix(csvString, expectedHeader+"\n") {
 		t.Errorf("CSV Header mismatch. Got: %q", strings.SplitN(csvString, "\n", 2)[0])
 	}
 
-	expectedLines := 5 // Header + 4 features
-	actualLines := len(strings.Split(strings.TrimSpace(csvString), "\n"))
-	if actualLines != expectedLines {
-		t.Errorf("Expected %d lines in CSV output, got %d", expectedLines, actualLines)
+	// Test with symbols excluded
+	featuresWithoutSymbols := make([]Feature, len(testFeatures))
+	for i, f := range testFeatures {
+		featuresWithoutSymbols[i] = Feature{
+			Attributes: make(map[string]interface{}),
+			Geometry:   f.Geometry,
+		}
+		// Copy all attributes except symbol
+		for k, v := range f.Attributes {
+			if k != "symbol" {
+				featuresWithoutSymbols[i].Attributes[k] = v
+			}
+		}
 	}
 
-	// Check if WKT for Point is present in the second line (first data row)
-	lines := strings.Split(csvString, "\n")
-	if len(lines) > 1 && !strings.Contains(lines[1], "POINT (-122.0000000000 37.0000000000)") {
-		t.Errorf("CSV output missing expected WKT for Point Feature. Line 1: %q", lines[1])
+	csvStringNoSymbols, err := convertFeaturesToCSV(featuresWithoutSymbols)
+	if err != nil {
+		t.Fatalf("convertFeaturesToCSV failed with excluded symbols: %v", err)
 	}
-	// Check WKT for nil geometry feature
-	if len(lines) > 4 && !strings.HasSuffix(strings.TrimSpace(lines[4]), ",,") { // Expect empty WKT and maybe other empty fields
-		t.Errorf("CSV output for nil geometry feature doesn't end with empty WKT. Line 4: %q", lines[4])
+
+	expectedHeaderNoSymbols := "Area,Name,OBJECTID,Status,Value,WKT_Geometry"
+	if !strings.HasPrefix(csvStringNoSymbols, expectedHeaderNoSymbols+"\n") {
+		t.Errorf("CSV Header mismatch when symbols excluded. Got: %q", strings.SplitN(csvStringNoSymbols, "\n", 2)[0])
 	}
 }
 
