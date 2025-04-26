@@ -1,6 +1,6 @@
 # arcgis-utils-go
 
-A command-line tool written in Go to download data from various ArcGIS sources (Feature Layers, Feature Servers, Map Servers, ArcGIS Online Items including Web Maps) and convert it to common geospatial formats.
+A command-line tool written in Go to download data from various **public** ArcGIS sources (Feature Layers, Feature Servers, Map Servers, ArcGIS Online Items including Web Maps) and convert it to common geospatial formats.
 
 ## Features
 
@@ -26,6 +26,8 @@ A command-line tool written in Go to download data from various ArcGIS sources (
 
 - [ ] Updating data only if the last edit date has changed
 - [ ] Versioning
+- [ ] ArcGIS API Support
+- [ ] Breakup codebase into multiple files
 
 ## Building
 
