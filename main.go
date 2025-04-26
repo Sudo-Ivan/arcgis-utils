@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/base64"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -228,6 +229,7 @@ func main() {
 	prefixPtr := flag.String("prefix", "", "Prefix for output filenames")
 	timeoutPtr := flag.Int("timeout", 30, "HTTP request timeout in seconds")
 	excludeSymbolsPtr := flag.Bool("exclude-symbols", false, "Exclude symbol information from output")
+	saveSymbolsPtr := flag.Bool("save-symbols", false, "Save symbology/images to a separate folder")
 
 	flag.Parse()
 
@@ -319,11 +321,12 @@ func main() {
 		skipExistingCopy := *skipExistingPtr
 		prefixCopy := *prefixPtr
 		excludeSymbolsCopy := *excludeSymbolsPtr
+		saveSymbolsCopy := *saveSymbolsPtr
 
 		go func() {
 			defer wg.Done()
 			printInfo(fmt.Sprintf("Processing Layer: %s (ID: %s)", layerInfoCopy.Name, layerInfoCopy.ID))
-			err := processSelectedLayer(client, layerInfoCopy, formatCopy, outputDirCopy, overwriteCopy, skipExistingCopy, prefixCopy, excludeSymbolsCopy)
+			err := processSelectedLayer(client, layerInfoCopy, formatCopy, outputDirCopy, overwriteCopy, skipExistingCopy, prefixCopy, excludeSymbolsCopy, saveSymbolsCopy)
 			if err != nil {
 				if err.Error() == "skipped existing file" {
 					printWarning(fmt.Sprintf("  Skipped layer %s (output file exists).", layerInfoCopy.Name))
@@ -631,7 +634,7 @@ func selectAndAddLayers(availableLayers []arcgis.AvailableLayerInfo, selectAll b
 }
 
 // processSelectedLayer processes a single selected layer and exports it to the specified format.
-func processSelectedLayer(client *arcgis.Client, layerInfo arcgis.AvailableLayerInfo, format, outputDir string, overwrite, skipExisting bool, prefix string, excludeSymbols bool) error {
+func processSelectedLayer(client *arcgis.Client, layerInfo arcgis.AvailableLayerInfo, format, outputDir string, overwrite, skipExisting bool, prefix string, excludeSymbols, saveSymbols bool) error {
 	metadataURL := fmt.Sprintf("%s/%s?f=json", layerInfo.ServiceURL, layerInfo.ID)
 	var layerMetadata arcgis.Layer
 	err := client.FetchAndDecode(metadataURL, &layerMetadata)
@@ -658,12 +661,27 @@ func processSelectedLayer(client *arcgis.Client, layerInfo arcgis.AvailableLayer
 		return fmt.Errorf("failed to fetch features: %v", err)
 	}
 
+	// Create symbols directory if needed
+	symbolsDir := ""
+	if saveSymbols {
+		symbolsDir = filepath.Join(outputDir, "symbols", actualLayerName)
+		if err := os.MkdirAll(symbolsDir, 0750); err != nil {
+			return fmt.Errorf("failed to create symbols directory %s: %v", symbolsDir, err)
+		}
+	}
+
 	// Add symbol information to features if available in layer metadata and not excluded
 	if !excludeSymbols && layerMetadata.DrawingInfo != nil && layerMetadata.DrawingInfo.Renderer != nil {
 		renderer := layerMetadata.DrawingInfo.Renderer
 
 		// Handle default symbol
 		if renderer.DefaultSymbol != nil {
+			if saveSymbols {
+				// Save default symbol
+				if err := saveSymbol(renderer.DefaultSymbol, symbolsDir, "default"); err != nil {
+					printWarning(fmt.Sprintf("  Warning: Failed to save default symbol: %v", err))
+				}
+			}
 			for i := range features {
 				if features[i].Attributes == nil {
 					features[i].Attributes = make(map[string]interface{})
@@ -677,6 +695,13 @@ func processSelectedLayer(client *arcgis.Client, layerInfo arcgis.AvailableLayer
 			for _, group := range renderer.UniqueValueGroups {
 				for _, class := range group.Classes {
 					if class.Symbol != nil {
+						if saveSymbols {
+							// Save class symbol
+							symbolName := fmt.Sprintf("class_%s", strings.ReplaceAll(class.Label, " ", "_"))
+							if err := saveSymbol(class.Symbol, symbolsDir, symbolName); err != nil {
+								printWarning(fmt.Sprintf("  Warning: Failed to save class symbol %s: %v", symbolName, err))
+							}
+						}
 						for i := range features {
 							if features[i].Attributes == nil {
 								features[i].Attributes = make(map[string]interface{})
@@ -813,4 +838,63 @@ func convertFeatures(features []arcgis.Feature) []convert.Feature {
 		convertFeatures[i] = convertToConvertFeature(f)
 	}
 	return convertFeatures
+}
+
+// saveSymbol saves a symbol to the specified directory
+func saveSymbol(symbol *arcgis.Symbol, dir, name string) error {
+	if symbol == nil {
+		return nil
+	}
+
+	// Save image data if available
+	if symbol.ImageData != "" {
+		// Decode base64 data
+		imageData, err := base64.StdEncoding.DecodeString(symbol.ImageData)
+		if err != nil {
+			return fmt.Errorf("failed to decode image data: %v", err)
+		}
+
+		// Determine file extension from content type
+		ext := ".png" // default
+		if symbol.ContentType != "" {
+			switch symbol.ContentType {
+			case "image/jpeg":
+				ext = ".jpg"
+			case "image/gif":
+				ext = ".gif"
+			case "image/svg+xml":
+				ext = ".svg"
+			}
+		}
+
+		// Save image file
+		imagePath := filepath.Join(dir, name+ext)
+		if err := os.WriteFile(imagePath, imageData, 0600); err != nil {
+			return fmt.Errorf("failed to write image file: %v", err)
+		}
+	}
+
+	// Save symbol metadata
+	metadata := map[string]interface{}{
+		"type":        symbol.Type,
+		"url":         symbol.URL,
+		"contentType": symbol.ContentType,
+		"width":       symbol.Width,
+		"height":      symbol.Height,
+		"xoffset":     symbol.XOffset,
+		"yoffset":     symbol.YOffset,
+		"angle":       symbol.Angle,
+	}
+
+	metadataPath := filepath.Join(dir, name+".json")
+	metadataBytes, err := json.MarshalIndent(metadata, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal symbol metadata: %v", err)
+	}
+
+	if err := os.WriteFile(metadataPath, metadataBytes, 0600); err != nil {
+		return fmt.Errorf("failed to write symbol metadata: %v", err)
+	}
+
+	return nil
 }

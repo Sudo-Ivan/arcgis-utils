@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -107,8 +108,12 @@ func TestProcessSelectedLayer(t *testing.T) {
 					Renderer: &arcgis.Renderer{
 						Type: "simple",
 						DefaultSymbol: &arcgis.Symbol{
-							Type: "esriPMS",
-							URL:  "test.png",
+							Type:        "esriPMS",
+							URL:         "test.png",
+							ImageData:   base64.StdEncoding.EncodeToString([]byte("test image data")),
+							ContentType: "image/png",
+							Width:       20,
+							Height:      20,
 						},
 					},
 				},
@@ -164,8 +169,8 @@ func TestProcessSelectedLayer(t *testing.T) {
 				IsFeatureLayer: true,
 			}
 
-			// Test processing the layer
-			err := processSelectedLayer(client, layerInfo, format, tempDir, true, false, "test_", false)
+			// Test processing the layer without saving symbols
+			err := processSelectedLayer(client, layerInfo, format, tempDir, true, false, "test_", false, false)
 			if err != nil {
 				t.Errorf("processSelectedLayer failed for format %s: %v", format, err)
 			}
@@ -174,6 +179,55 @@ func TestProcessSelectedLayer(t *testing.T) {
 			expectedFile := filepath.Join(tempDir, "test_Test_Layer."+format)
 			if _, err := os.Stat(expectedFile); os.IsNotExist(err) {
 				t.Errorf("Output file %s was not created", expectedFile)
+			}
+
+			// Test processing the layer with saving symbols
+			err = processSelectedLayer(client, layerInfo, format, tempDir, true, false, "test_", false, true)
+			if err != nil {
+				t.Errorf("processSelectedLayer failed for format %s with symbol saving: %v", format, err)
+			}
+
+			// Check if symbols directory was created
+			symbolsDir := filepath.Join(tempDir, "symbols", "Test Layer")
+			if _, err := os.Stat(symbolsDir); os.IsNotExist(err) {
+				t.Errorf("Symbols directory %s was not created", symbolsDir)
+			}
+
+			// Check if default symbol files were created
+			defaultSymbolFiles := []string{
+				filepath.Join(symbolsDir, "default.png"),
+				filepath.Join(symbolsDir, "default.json"),
+			}
+			for _, file := range defaultSymbolFiles {
+				if _, err := os.Stat(file); os.IsNotExist(err) {
+					t.Errorf("Symbol file %s was not created", file)
+				}
+			}
+
+			// Verify symbol metadata
+			metadataPath := filepath.Join(symbolsDir, "default.json")
+			metadataBytes, err := os.ReadFile(metadataPath)
+			if err != nil {
+				t.Errorf("Failed to read symbol metadata: %v", err)
+			}
+
+			var metadata map[string]interface{}
+			if err := json.Unmarshal(metadataBytes, &metadata); err != nil {
+				t.Errorf("Failed to parse symbol metadata: %v", err)
+			}
+
+			// Verify metadata fields
+			expectedFields := map[string]interface{}{
+				"type":        "esriPMS",
+				"url":         "test.png",
+				"contentType": "image/png",
+				"width":       float64(20),
+				"height":      float64(20),
+			}
+			for key, expectedValue := range expectedFields {
+				if value, ok := metadata[key]; !ok || value != expectedValue {
+					t.Errorf("Symbol metadata field %s: expected %v, got %v", key, expectedValue, value)
+				}
 			}
 		})
 	}
