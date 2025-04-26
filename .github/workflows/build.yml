@@ -14,15 +14,10 @@ jobs:
       matrix:
         goos: [linux, windows, darwin]
         goarch: [amd64, arm64]
-        exclude:
-          # Add exclusions if certain combinations are not needed or supported
-          # Example: Exclude windows/arm64 if not targeted
-          # - goos: windows
-          #   goarch: arm64
 
     runs-on: ubuntu-latest
 
-    outputs: # Define an output to indicate completion
+    outputs:
       build_complete: ${{ steps.build_step.outcome == 'success' }}
 
     steps:
@@ -35,7 +30,7 @@ jobs:
         go-version: '1.24'
 
     - name: Build
-      id: build_step # Give the build step an id
+      id: build_step
       env:
         GOOS: ${{ matrix.goos }}
         GOARCH: ${{ matrix.goarch }}
@@ -50,8 +45,8 @@ jobs:
     - name: Upload Artifacts (Consolidated)
       uses: actions/upload-artifact@v4
       with:
-        name: binaries # Upload all binaries under a single artifact name
-        path: arcgis-utils-go-* # Use wildcard to grab all built files
+        name: binaries
+        path: arcgis-utils-go-*
 
   release:
     name: Create Release
@@ -75,9 +70,4 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: ./release-assets/* # Upload all files from the download directory
-          # The release name and body will be automatically generated from the tag
-          # Set `draft: true` if you want to manually publish the release
-          # draft: false
-          # Set `prerelease: true` if the tag indicates a pre-release version
-          # prerelease: contains(github.ref, '-rc')
+          files: ./release-assets/*
