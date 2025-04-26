@@ -1402,6 +1402,9 @@ func geometryToWKT(geometry interface{}) string {
 						}
 					}
 				}
+				if len(points) == 0 { // Check if points were actually added
+					return ""
+				}
 				return fmt.Sprintf("LINESTRING (%s)", strings.Join(points, ", "))
 			}
 		}
@@ -1424,11 +1427,16 @@ func geometryToWKT(geometry interface{}) string {
 						}
 					}
 					// Ensure ring is closed for WKT
-					if len(points) > 0 && points[0] != points[len(points)-1] {
-						points = append(points, points[0])
+					if len(points) > 0 {
+						if points[0] != points[len(points)-1] {
+							points = append(points, points[0])
+						}
+						polygonRings = append(polygonRings, fmt.Sprintf("(%s)", strings.Join(points, ", ")))
 					}
-					polygonRings = append(polygonRings, fmt.Sprintf("(%s)", strings.Join(points, ", ")))
 				}
+			}
+			if len(polygonRings) == 0 { // Check if any valid rings were processed
+				return ""
 			}
 			return fmt.Sprintf("POLYGON (%s)", strings.Join(polygonRings, ", "))
 		}
@@ -1440,13 +1448,23 @@ func geometryToWKT(geometry interface{}) string {
 // convertFeaturesToCSV converts a slice of Feature structs to a CSV string.
 func convertFeaturesToCSV(features []Feature) (string, error) {
 	if len(features) == 0 {
-		return "", fmt.Errorf("no features to convert to CSV")
+		// Return empty string or just header if no features? Decide based on desired behavior.
+		// For now, let's return an error like GeoJSON conversion does for empty results.
+		// Or perhaps just return the header? Returning empty string for now.
+		// If a header is desired even for no features, create it here.
+		return "", nil // Return empty string if no features
 	}
 
-	// Determine headers from the first feature's attributes
+	// Determine all unique headers from all features' attributes
+	headerMap := make(map[string]bool)
+	for _, feature := range features {
+		for k := range feature.Attributes {
+			headerMap[k] = true
+		}
+	}
+
 	var headers []string
-	firstAttrs := features[0].Attributes
-	for k := range firstAttrs {
+	for k := range headerMap {
 		headers = append(headers, k)
 	}
 	sort.Strings(headers)                     // Sort for consistent column order
