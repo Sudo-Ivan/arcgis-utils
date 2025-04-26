@@ -29,6 +29,12 @@ A command-line tool written in Go to download data from various **public** ArcGI
 - [ ] ArcGIS API Support
 - [ ] Breakup codebase into multiple files
 
+## Installation
+
+```bash
+go install github.com/Sudo-Ivan/arcgis-utils@latest
+```
+
 ## Building
 
 Ensure you have Go installed (version 1.24 or later recommended).
@@ -86,7 +92,6 @@ This will create an executable named `arcgis-utils` (or `arcgis-utils.exe` on Wi
 ```bash
 ./arcgis-utils -url https://www.arcgis.com/home/item.html?id=a12b34c56d78e90f1234567890abcdef -skip-existing
 ```
-
 ## License
 
 MIT License
