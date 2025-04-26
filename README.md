@@ -31,8 +31,30 @@ A command-line tool written in Go to download data from various **public** ArcGI
 
 ## Installation
 
+Download the binary for your platform from the [releases page](https://github.com/Sudo-Ivan/arcgis-utils/releases). 
+
+### Usage
+
+Linux/MacOS Example:
+
+```bash
+./arcgis-utils-go-linux-amd64 -url <ARCGIS_URL> [OPTIONS]
+```
+
+Windows Example:
+
+```bash
+./arcgis-utils-go-windows-amd64.exe -url <ARCGIS_URL> [OPTIONS]
+```
+
+With Go:
+
 ```bash
 go install github.com/Sudo-Ivan/arcgis-utils@latest
+```
+
+```bash
+arcgis-utils -url <ARCGIS_URL> [OPTIONS]
 ```
 
 ## Building
