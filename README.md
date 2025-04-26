@@ -79,7 +79,7 @@ This will create an executable named `arcgis-utils` (or `arcgis-utils.exe` on Wi
 
 **Options:**
 
-*   `-format <format>`: Output format. Options are `geojson` (default), `kml`, `gpx`.
+*   `-format <format>`: Output format. Options are `geojson` (default), `kml`, `gpx`, `csv`, `json`, `text`.
 *   `-output <directory>`: Directory to save the output files. Defaults to the current working directory.
 *   `-select-all`: Automatically select and process all discoverable Feature Layers without prompting.
 *   `-no-color`: Disable colored terminal output.
@@ -87,6 +87,7 @@ This will create an executable named `arcgis-utils` (or `arcgis-utils.exe` on Wi
 *   `-skip-existing`: If an output file for a layer already exists, skip processing that layer instead of erroring or overwriting.
 *   `-prefix <prefix>`: Add a specified prefix to all output filenames.
 *   `-timeout <seconds>`: Set the timeout in seconds for HTTP requests (default: 30).
+*   `-exclude-symbols`: Exclude symbol information (images, styling) from the output. Useful for reducing file size or when symbols aren't needed.
 
 ## Examples
 
@@ -114,6 +115,19 @@ This will create an executable named `arcgis-utils` (or `arcgis-utils.exe` on Wi
 ```bash
 ./arcgis-utils -url https://www.arcgis.com/home/item.html?id=a12b34c56d78e90f1234567890abcdef -skip-existing
 ```
+
+**5. Download a Feature Layer as GeoJSON without symbol information:**
+
+```bash
+./arcgis-utils -url https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/World_Time_Zones/FeatureServer/0 -exclude-symbols
+```
+
+**6. Download a Feature Layer as CSV with a custom timeout:**
+
+```bash
+./arcgis-utils -url https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/World_Time_Zones/FeatureServer/0 -format csv -timeout 60
+```
+
 ## License
 
 MIT License
