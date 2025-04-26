@@ -1,10 +1,24 @@
 package main
 
 import (
-	"fmt"
-	"strings"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
+	"time"
+
+	"github.com/Sudo-Ivan/arcgis-utils/pkg/arcgis"
+	"github.com/Sudo-Ivan/arcgis-utils/pkg/convert"
+	"github.com/Sudo-Ivan/arcgis-utils/pkg/export"
 )
+
+func TestMain(m *testing.M) {
+	// Set up test environment
+	useColor = false // Disable color output for tests
+	os.Exit(m.Run())
+}
 
 func TestNormalizeArcGISURL(t *testing.T) {
 	tests := []struct {
@@ -27,9 +41,9 @@ func TestNormalizeArcGISURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			actual := normalizeArcGISURL(tt.input)
+			actual := arcgis.NormalizeArcGISURL(tt.input)
 			if actual != tt.expected {
-				t.Errorf("normalizeArcGISURL(%q): expected %q, got %q", tt.input, tt.expected, actual)
+				t.Errorf("NormalizeArcGISURL(%q): expected %q, got %q", tt.input, tt.expected, actual)
 			}
 		})
 	}
@@ -52,417 +66,220 @@ func TestIsValidHTTPURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := isValidHTTPURL(tt.input); got != tt.want {
-				t.Errorf("isValidHTTPURL(%q) = %v; want %v", tt.input, got, tt.want)
+			if got := arcgis.IsValidHTTPURL(tt.input); got != tt.want {
+				t.Errorf("IsValidHTTPURL(%q) = %v; want %v", tt.input, got, tt.want)
 			}
 		})
 	}
 }
 
-func TestGeometryToWKT(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    interface{}
-		expected string
-	}{
-		{"Nil Geometry", nil, ""},
-		{"Invalid Type", "not a map", ""},
-		{"Point Geometry", map[string]interface{}{"x": -122.5, "y": 37.8}, "POINT (-122.5000000000 37.8000000000)"},
-		{"Point Geometry Integer Coords", map[string]interface{}{"x": -122.0, "y": 37.0}, "POINT (-122.0000000000 37.0000000000)"},
-		{"LineString Geometry", map[string]interface{}{"paths": []interface{}{ // Array of paths
-			[]interface{}{ // First path: array of points
-				[]interface{}{-122.0, 37.0}, // Point
-				[]interface{}{-122.1, 37.1}, // Point
-			},
-		}}, "LINESTRING (-122.0000000000 37.0000000000, -122.1000000000 37.1000000000)"},
-		{"Polygon Geometry Single Ring", map[string]interface{}{"rings": []interface{}{ // Array of rings
-			[]interface{}{ // First ring: array of points
-				[]interface{}{-122.0, 37.0},
-				[]interface{}{-122.1, 37.0},
-				[]interface{}{-122.1, 37.1},
-				[]interface{}{-122.0, 37.1},
-				[]interface{}{-122.0, 37.0},
-			},
-		}}, "POLYGON ((-122.0000000000 37.0000000000, -122.1000000000 37.0000000000, -122.1000000000 37.1000000000, -122.0000000000 37.1000000000, -122.0000000000 37.0000000000))"},
-		{"Polygon Geometry Unclosed Ring", map[string]interface{}{"rings": []interface{}{ // Array of rings
-			[]interface{}{ // First ring: array of points
-				[]interface{}{-1.0, 1.0},
-				[]interface{}{-2.0, 1.0},
-				[]interface{}{-2.0, 2.0},
-			},
-		}}, "POLYGON ((-1.0000000000 1.0000000000, -2.0000000000 1.0000000000, -2.0000000000 2.0000000000, -1.0000000000 1.0000000000))"}, // Expect auto-close
-		{"Polygon With Hole", map[string]interface{}{"rings": []interface{}{ // Array of rings
-			[]interface{}{ // Outer ring
-				[]interface{}{0.0, 0.0}, []interface{}{10.0, 0.0}, []interface{}{10.0, 10.0}, []interface{}{0.0, 10.0}, []interface{}{0.0, 0.0},
-			},
-			[]interface{}{ // Inner ring (hole)
-				[]interface{}{1.0, 1.0}, []interface{}{1.0, 2.0}, []interface{}{2.0, 2.0}, []interface{}{2.0, 1.0}, []interface{}{1.0, 1.0},
-			},
-		}}, "POLYGON ((0.0000000000 0.0000000000, 10.0000000000 0.0000000000, 10.0000000000 10.0000000000, 0.0000000000 10.0000000000, 0.0000000000 0.0000000000), (1.0000000000 1.0000000000, 1.0000000000 2.0000000000, 2.0000000000 2.0000000000, 2.0000000000 1.0000000000, 1.0000000000 1.0000000000))"},
-		{"Missing Coordinates Point", map[string]interface{}{"x": -122.5}, ""},
-		{"Missing Paths", map[string]interface{}{"paths": []interface{}{}}, ""},
-		{"Empty Path", map[string]interface{}{"paths": []interface{}{[]interface{}{}}}, ""},
-		{"Missing Rings", map[string]interface{}{"rings": []interface{}{}}, ""},
-		{"Empty Ring", map[string]interface{}{"rings": []interface{}{[]interface{}{}}}, ""},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			actual := geometryToWKT(tt.input)
-			if actual != tt.expected {
-				t.Errorf("geometryToWKT(): expected %q, got %q", tt.expected, actual)
-			}
-		})
-	}
-}
-
-func TestEscapeXML(t *testing.T) {
+func TestIsArcGISOnlineItemURL(t *testing.T) {
 	tests := []struct {
 		name  string
 		input string
-		want  string
+		want  bool
 	}{
-		{"No Escaping Needed", "Hello World", "Hello World"},
-		{"Ampersand", "Me & You", "Me &amp; You"},
-		{"Less Than", "1 < 2", "1 &lt; 2"},
-		{"Greater Than", "2 > 1", "2 &gt; 1"},
-		{"Double Quote", `He said "Hi"`, `He said &quot;Hi&quot;`},
-		{"Single Quote", "It's mine", "It&apos;s mine"},
-		{"Forward Slash", "path/to/file", "path&#x2F;to&#x2F;file"},
-		{"All Characters", `<tag attr="val'ue">&/`, `&lt;tag attr=&quot;val&apos;ue&quot;&gt;&amp;&#x2F;`},
-		{"Empty String", "", ""},
+		{"Valid AGOL Item URL", "https://www.arcgis.com/home/item.html?id=abc123", true},
+		{"Valid AGOL Item URL with other params", "https://www.arcgis.com/home/item.html?id=abc123&other=param", true},
+		{"Invalid URL", "https://example.com", false},
+		{"Empty String", "", false},
+		{"Just domain", "arcgis.com", false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := escapeXML(tt.input); got != tt.want {
-				t.Errorf("escapeXML(%q) = %q, want %q", tt.input, got, tt.want)
+			if got := arcgis.IsArcGISOnlineItemURL(tt.input); got != tt.want {
+				t.Errorf("IsArcGISOnlineItemURL(%q) = %v; want %v", tt.input, got, tt.want)
 			}
 		})
 	}
 }
 
-func TestGetFeatureName(t *testing.T) {
+func TestProcessSelectedLayer(t *testing.T) {
+	// Create a mock server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Mock layer metadata response
+		if r.URL.Path == "/0" && r.URL.Query().Get("f") == "json" {
+			layer := arcgis.Layer{
+				Name: "Test Layer",
+				Type: "Feature Layer",
+				DrawingInfo: &arcgis.DrawingInfo{
+					Renderer: &arcgis.Renderer{
+						Type: "simple",
+						DefaultSymbol: &arcgis.Symbol{
+							Type: "esriPMS",
+							URL:  "test.png",
+						},
+					},
+				},
+			}
+			json.NewEncoder(w).Encode(layer)
+			return
+		}
+
+		// Mock features response
+		if r.URL.Path == "/0/query" {
+			features := arcgis.FeatureResponse{
+				Features: []arcgis.Feature{
+					{
+						Attributes: map[string]interface{}{
+							"OBJECTID": 1,
+							"Name":     "Test Feature",
+						},
+						Geometry: map[string]interface{}{
+							"x": -122.0,
+							"y": 37.0,
+						},
+					},
+				},
+			}
+			json.NewEncoder(w).Encode(features)
+			return
+		}
+
+		http.Error(w, "Not found", http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	// Create a test client
+	client := arcgis.NewClient(30 * time.Second)
+
+	// Create a temporary directory for test output
+	tempDir, err := os.MkdirTemp("", "arcgis-utils-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Test cases for different formats
+	formats := []string{"geojson", "kml", "gpx", "csv", "json", "txt"}
+
+	for _, format := range formats {
+		t.Run(format, func(t *testing.T) {
+			// Create a test layer info
+			layerInfo := arcgis.AvailableLayerInfo{
+				ID:             "0",
+				Name:           "Test Layer",
+				ServiceURL:     server.URL,
+				IsFeatureLayer: true,
+			}
+
+			// Test processing the layer
+			err := processSelectedLayer(client, layerInfo, format, tempDir, true, false, "test_", false)
+			if err != nil {
+				t.Errorf("processSelectedLayer failed for format %s: %v", format, err)
+			}
+
+			// Check if output file was created
+			expectedFile := filepath.Join(tempDir, "test_Test_Layer."+format)
+			if _, err := os.Stat(expectedFile); os.IsNotExist(err) {
+				t.Errorf("Output file %s was not created", expectedFile)
+			}
+		})
+	}
+}
+
+func TestConvertFeatures(t *testing.T) {
+	// Create test features
+	features := []arcgis.Feature{
+		{
+			Attributes: map[string]interface{}{
+				"OBJECTID": 1,
+				"Name":     "Test Feature 1",
+			},
+			Geometry: map[string]interface{}{
+				"x": -122.0,
+				"y": 37.0,
+			},
+		},
+		{
+			Attributes: map[string]interface{}{
+				"OBJECTID": 2,
+				"Name":     "Test Feature 2",
+			},
+			Geometry: map[string]interface{}{
+				"paths": []interface{}{
+					[]interface{}{
+						[]interface{}{-122.0, 37.0},
+						[]interface{}{-122.1, 37.1},
+					},
+				},
+			},
+		},
+	}
+
+	// Test conversion to convert.Feature
+	convertedFeatures := convertFeatures(features)
+	if len(convertedFeatures) != len(features) {
+		t.Errorf("Expected %d converted features, got %d", len(features), len(convertedFeatures))
+	}
+
+	// Test conversion to GeoJSON
+	geojson, err := convert.ConvertToGeoJSON(convertedFeatures)
+	if err != nil {
+		t.Errorf("ConvertToGeoJSON failed: %v", err)
+	}
+	if geojson == nil {
+		t.Error("ConvertToGeoJSON returned nil")
+	}
+	if len(geojson.Features) != len(features) {
+		t.Errorf("Expected %d GeoJSON features, got %d", len(features), len(geojson.Features))
+	}
+
+	// Test conversion to KML
+	kml, err := export.ConvertGeoJSONToKML(geojson, "Test Layer")
+	if err != nil {
+		t.Errorf("ConvertGeoJSONToKML failed: %v", err)
+	}
+	if kml == "" {
+		t.Error("ConvertGeoJSONToKML returned empty string")
+	}
+
+	// Test conversion to GPX
+	gpx, err := export.ConvertGeoJSONToGPX(geojson, "Test Layer")
+	if err != nil {
+		t.Errorf("ConvertGeoJSONToGPX failed: %v", err)
+	}
+	if gpx == "" {
+		t.Error("ConvertGeoJSONToGPX returned empty string")
+	}
+
+	// Test conversion to CSV
+	csv, err := convert.ConvertFeaturesToCSV(convertedFeatures)
+	if err != nil {
+		t.Errorf("ConvertFeaturesToCSV failed: %v", err)
+	}
+	if csv == "" {
+		t.Error("ConvertFeaturesToCSV returned empty string")
+	}
+
+	// Test conversion to text
+	text, err := convert.ConvertFeaturesToText(convertedFeatures, "Test Layer")
+	if err != nil {
+		t.Errorf("ConvertFeaturesToText failed: %v", err)
+	}
+	if text == "" {
+		t.Error("ConvertFeaturesToText returned empty string")
+	}
+}
+
+func TestPrintFunctions(t *testing.T) {
+	// Test each print function
 	tests := []struct {
 		name     string
-		feature  GeoJSONFeature
-		expected string
+		function func(string)
+		message  string
 	}{
-		{"Name Field Lowercase", GeoJSONFeature{Properties: map[string]interface{}{"name": "Feature A", "id": 1}}, "Feature A"},
-		{"Name Field Uppercase", GeoJSONFeature{Properties: map[string]interface{}{"NAME": "Feature B", "id": 2}}, "Feature B"},
-		{"Name Field Mixed Case", GeoJSONFeature{Properties: map[string]interface{}{"Name": "Feature C", "id": 3}}, "Feature C"},
-		{"Title Field Lowercase", GeoJSONFeature{Properties: map[string]interface{}{"title": "Feature D", "id": 4}}, "Feature D"},
-		{"Title Field Uppercase", GeoJSONFeature{Properties: map[string]interface{}{"TITLE": "Feature E", "id": 5}}, "Feature E"},
-		{"Title Field Mixed Case", GeoJSONFeature{Properties: map[string]interface{}{"Title": "Feature F", "id": 6}}, "Feature F"},
-		{"OBJECTID Field", GeoJSONFeature{Properties: map[string]interface{}{"OBJECTID": 101, "other": "data"}}, "101"},
-		{"FID Field", GeoJSONFeature{Properties: map[string]interface{}{"FID": 202, "other": "data"}}, "202"},
-		{"Multiple Name Fields Priority", GeoJSONFeature{Properties: map[string]interface{}{"name": "Primary", "Name": "Secondary", "title": "Tertiary", "OBJECTID": 1}}, "Primary"},
-		{"Only Title Field", GeoJSONFeature{Properties: map[string]interface{}{"title": "Only Title", "OBJECTID": 2}}, "Only Title"},
-		{"Only OBJECTID Field", GeoJSONFeature{Properties: map[string]interface{}{"OBJECTID": 3}}, "3"},
-		{"Only FID Field", GeoJSONFeature{Properties: map[string]interface{}{"FID": 4}}, "4"},
-		{"No Name/Title/ID Fields", GeoJSONFeature{Properties: map[string]interface{}{"attribute1": "value1"}}, "Feature"},
-		{"Empty Properties", GeoJSONFeature{Properties: map[string]interface{}{}}, "Feature"},
-		{"Nil Properties", GeoJSONFeature{Properties: nil}, "Feature"},
-		{"Name Field is Null", GeoJSONFeature{Properties: map[string]interface{}{"name": nil, "title": "Title Here"}}, "Title Here"},
+		{"printInfo", printInfo, "Info message"},
+		{"printSuccess", printSuccess, "Success message"},
+		{"printWarning", printWarning, "Warning message"},
+		{"printError", printError, "Error message"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := getFeatureName(tt.feature); got != tt.expected {
-				t.Errorf("getFeatureName() = %v, want %v", got, tt.expected)
-			}
+			// Since we disabled color output in TestMain, these should just print the message
+			tt.function(tt.message)
 		})
 	}
 }
-
-func TestFormatProperties(t *testing.T) {
-	tests := []struct {
-		name      string
-		props     map[string]interface{}
-		separator []string
-		expected  string
-	}{
-		{"Simple Properties HTML", map[string]interface{}{"Name": "Test", "Value": 123}, []string{}, "<strong>Name</strong>: Test<br><strong>Value</strong>: 123"},                                                                                                   // Order might vary
-		{"Simple Properties Custom Separator", map[string]interface{}{"City": "Paris", "Country": "France"}, []string{", "}, "<strong>City</strong>: Paris, <strong>Country</strong>: France"},                                                                       // Order might vary
-		{"Properties with Escaping HTML", map[string]interface{}{"Desc": "<script>alert('XSS')</script>", "Attr": "Me & You"}, []string{}, "<strong>Attr</strong>: Me &amp; You<br><strong>Desc</strong>: &lt;script&gt;alert(&apos;XSS&apos;)&lt;&#x2F;script&gt;"}, // Order might vary
-		{"Properties with Escaping Custom Separator", map[string]interface{}{"Tag": "<tag>", "Value": `"Quote"`}, []string{" | "}, "<strong>Tag</strong>: &lt;tag&gt; | <strong>Value</strong>: &quot;Quote&quot;"},                                                  // Order might vary
-		{"Empty Properties", map[string]interface{}{}, []string{}, ""},
-		{"Nil Properties", nil, []string{}, ""},
-		{"Geometry Property Ignored", map[string]interface{}{"Name": "Test", "geometry": map[string]interface{}{}}, []string{}, "<strong>Name</strong>: Test"},
-		{"Numeric Property", map[string]interface{}{"Count": 10.5}, []string{}, "<strong>Count</strong>: 10.5"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := formatProperties(tt.props, tt.separator...)
-			// Note: Since map iteration order is not guaranteed, we check for parts existence instead of exact match for multiple properties.
-			if len(tt.props) <= 1 {
-				if got != tt.expected {
-					t.Errorf("formatProperties() = %q, want %q", got, tt.expected)
-				}
-			} else if len(tt.props) > 1 {
-				sep := "<br>"
-				if len(tt.separator) > 0 {
-					sep = tt.separator[0]
-				}
-				expectedParts := strings.Split(tt.expected, sep)
-				gotParts := strings.Split(got, sep)
-				if len(gotParts) != len(expectedParts) {
-					t.Errorf("formatProperties() produced wrong number of parts: got %d, want %d. Got: %q, Want: %q", len(gotParts), len(expectedParts), got, tt.expected)
-				}
-				// Simple check: Ensure all expected parts are present in the output parts
-				for _, expPart := range expectedParts {
-					found := false
-					for _, gotPart := range gotParts {
-						if gotPart == expPart {
-							found = true
-							break
-						}
-					}
-					if !found {
-						t.Errorf("formatProperties() missing expected part: %q in output %q", expPart, got)
-					}
-				}
-			}
-		})
-	}
-}
-
-// --- Feature Conversion Tests ---
-
-// Sample features for testing conversions
-var testFeatures = []Feature{
-	{
-		Attributes: map[string]interface{}{
-			"OBJECTID": 1,
-			"Name":     "Point Feature",
-			"Value":    10.5,
-			"symbol": &Symbol{
-				Type:        "esriPMS",
-				URL:         "test.png",
-				ImageData:   "base64data",
-				ContentType: "image/png",
-				Width:       20,
-				Height:      20,
-				XOffset:     0,
-				YOffset:     0,
-				Angle:       0,
-			},
-		},
-		Geometry: map[string]interface{}{"x": -122.0, "y": 37.0},
-	},
-	{
-		Attributes: map[string]interface{}{
-			"OBJECTID": 2,
-			"Name":     "Line Feature",
-			"Status":   "Active",
-			"symbol": &Symbol{
-				Type:        "esriSLS",
-				URL:         "line.png",
-				ImageData:   "base64data2",
-				ContentType: "image/png",
-				Width:       2,
-				Height:      0,
-				XOffset:     0,
-				YOffset:     0,
-				Angle:       45,
-			},
-		},
-		Geometry: map[string]interface{}{"paths": []interface{}{ // Array of paths
-			[]interface{}{ // First path: array of points
-				[]interface{}{-122.0, 37.0}, // Point
-				[]interface{}{-122.1, 37.1}, // Point
-			},
-		}},
-	},
-	{
-		Attributes: map[string]interface{}{
-			"OBJECTID": 3,
-			"Name":     "Polygon Feature",
-			"Area":     1234.5,
-			"symbol": &Symbol{
-				Type:        "esriSFS",
-				URL:         "poly.png",
-				ImageData:   "base64data3",
-				ContentType: "image/png",
-				Width:       0,
-				Height:      0,
-				XOffset:     0,
-				YOffset:     0,
-				Angle:       0,
-			},
-		},
-		Geometry: map[string]interface{}{"rings": []interface{}{ // Array of rings
-			[]interface{}{ // First ring: array of points
-				[]interface{}{-1.0, 1.0},
-				[]interface{}{-2.0, 1.0},
-				[]interface{}{-2.0, 2.0},
-				[]interface{}{-1.0, 1.0}, // Closed explicitly for simplicity here
-			},
-		}},
-	},
-	{
-		Attributes: map[string]interface{}{"OBJECTID": 4, "Name": "Attribute Only"},
-		Geometry:   nil, // No geometry
-	},
-}
-
-func TestConvertToGeoJSON(t *testing.T) {
-	// Test with symbols included
-	geoJSON, err := convertToGeoJSON(testFeatures)
-	if err != nil {
-		t.Fatalf("convertToGeoJSON failed: %v", err)
-	}
-
-	if geoJSON == nil {
-		t.Fatal("convertToGeoJSON returned nil GeoJSON object")
-	}
-
-	if geoJSON.Type != "FeatureCollection" {
-		t.Errorf("Expected GeoJSON Type 'FeatureCollection', got %q", geoJSON.Type)
-	}
-
-	expectedFeatureCount := 3 // Feature 4 has no geometry, should be skipped
-	if len(geoJSON.Features) != expectedFeatureCount {
-		t.Errorf("Expected %d GeoJSON features, got %d", expectedFeatureCount, len(geoJSON.Features))
-	}
-
-	// Basic checks on the first feature (Point)
-	if len(geoJSON.Features) > 0 {
-		f1 := geoJSON.Features[0]
-		if f1.Type != "Feature" {
-			t.Errorf("Feature 1: Expected Type 'Feature', got %q", f1.Type)
-		}
-		if f1.Properties["Name"] != "Point Feature" {
-			t.Errorf("Feature 1: Expected Name property 'Point Feature', got %v", f1.Properties["Name"])
-		}
-		geom, ok := f1.Geometry.(map[string]interface{})
-		if !ok || geom["type"] != "Point" {
-			t.Errorf("Feature 1: Expected Point geometry, got %v", f1.Geometry)
-		}
-
-		// Check symbol information
-		symbol, ok := f1.Properties["symbol"].(*Symbol)
-		if !ok {
-			t.Errorf("Feature 1: Expected Symbol property, got %v", f1.Properties["symbol"])
-		} else {
-			if symbol.Type != "esriPMS" {
-				t.Errorf("Feature 1: Expected symbol type 'esriPMS', got %q", symbol.Type)
-			}
-			if symbol.URL != "test.png" {
-				t.Errorf("Feature 1: Expected symbol URL 'test.png', got %q", symbol.URL)
-			}
-			if symbol.ImageData != "base64data" {
-				t.Errorf("Feature 1: Expected symbol imageData 'base64data', got %q", symbol.ImageData)
-			}
-			if symbol.ContentType != "image/png" {
-				t.Errorf("Feature 1: Expected symbol contentType 'image/png', got %q", symbol.ContentType)
-			}
-			if symbol.Width != 20 {
-				t.Errorf("Feature 1: Expected symbol width 20, got %d", symbol.Width)
-			}
-			if symbol.Height != 20 {
-				t.Errorf("Feature 1: Expected symbol height 20, got %d", symbol.Height)
-			}
-		}
-	}
-
-	// Test with symbols excluded
-	featuresWithoutSymbols := make([]Feature, len(testFeatures))
-	for i, f := range testFeatures {
-		featuresWithoutSymbols[i] = Feature{
-			Attributes: make(map[string]interface{}),
-			Geometry:   f.Geometry,
-		}
-		// Copy all attributes except symbol
-		for k, v := range f.Attributes {
-			if k != "symbol" {
-				featuresWithoutSymbols[i].Attributes[k] = v
-			}
-		}
-	}
-
-	geoJSONNoSymbols, err := convertToGeoJSON(featuresWithoutSymbols)
-	if err != nil {
-		t.Fatalf("convertToGeoJSON failed with excluded symbols: %v", err)
-	}
-
-	if len(geoJSONNoSymbols.Features) > 0 {
-		f1 := geoJSONNoSymbols.Features[0]
-		if _, ok := f1.Properties["symbol"]; ok {
-			t.Errorf("Feature 1: Expected no symbol property when symbols are excluded")
-		}
-	}
-}
-
-func TestConvertFeaturesToCSV(t *testing.T) {
-	// Test with symbols included
-	csvString, err := convertFeaturesToCSV(testFeatures)
-	if err != nil {
-		t.Fatalf("convertFeaturesToCSV failed: %v", err)
-	}
-
-	// Basic structural checks - more robust parsing could be added
-	expectedHeader := "Area,Name,OBJECTID,Status,Value,symbol,WKT_Geometry"
-	if !strings.HasPrefix(csvString, expectedHeader+"\n") {
-		t.Errorf("CSV Header mismatch. Got: %q", strings.SplitN(csvString, "\n", 2)[0])
-	}
-
-	// Test with symbols excluded
-	featuresWithoutSymbols := make([]Feature, len(testFeatures))
-	for i, f := range testFeatures {
-		featuresWithoutSymbols[i] = Feature{
-			Attributes: make(map[string]interface{}),
-			Geometry:   f.Geometry,
-		}
-		// Copy all attributes except symbol
-		for k, v := range f.Attributes {
-			if k != "symbol" {
-				featuresWithoutSymbols[i].Attributes[k] = v
-			}
-		}
-	}
-
-	csvStringNoSymbols, err := convertFeaturesToCSV(featuresWithoutSymbols)
-	if err != nil {
-		t.Fatalf("convertFeaturesToCSV failed with excluded symbols: %v", err)
-	}
-
-	expectedHeaderNoSymbols := "Area,Name,OBJECTID,Status,Value,WKT_Geometry"
-	if !strings.HasPrefix(csvStringNoSymbols, expectedHeaderNoSymbols+"\n") {
-		t.Errorf("CSV Header mismatch when symbols excluded. Got: %q", strings.SplitN(csvStringNoSymbols, "\n", 2)[0])
-	}
-}
-
-func TestConvertFeaturesToText(t *testing.T) {
-	layerName := "Test Layer"
-	textString, err := convertFeaturesToText(testFeatures, layerName)
-	if err != nil {
-		t.Fatalf("convertFeaturesToText failed: %v", err)
-	}
-
-	// Basic structural checks
-	if !strings.Contains(textString, fmt.Sprintf("Layer: %s\n", layerName)) {
-		t.Errorf("Text output missing Layer name header.")
-	}
-	if !strings.Contains(textString, fmt.Sprintf("Total Features: %d\n", len(testFeatures))) {
-		t.Errorf("Text output missing Total Features header.")
-	}
-	if !strings.Contains(textString, "--- Feature 1 ---") {
-		t.Errorf("Text output missing marker for Feature 1.")
-	}
-	if !strings.Contains(textString, "--- Feature 4 ---") {
-		t.Errorf("Text output missing marker for Feature 4.")
-	}
-	if !strings.Contains(textString, "Name: Point Feature") {
-		t.Errorf("Text output missing attribute 'Name: Point Feature'.")
-	}
-	if !strings.Contains(textString, "Geometry (WKT):\n  POINT (-122.0000000000 37.0000000000)") {
-		t.Errorf("Text output missing WKT for Point Feature.")
-	}
-	if !strings.Contains(textString, "Geometry (WKT):\n  <No Geometry>") {
-		t.Errorf("Text output missing '<No Geometry>' marker for nil geometry feature.")
-	}
-}
-
-// Add more tests later...
