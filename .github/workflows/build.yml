@@ -74,7 +74,7 @@ jobs:
         if [ "$GOOS" = "windows" ]; then
           output_name+=".exe"
         fi
-        go build -v -o "${output_name}" .
+        go build -v -ldflags="-s -w" -o "${output_name}" .
         echo "Built: ${output_name}"
 
     - name: Upload Artifact
