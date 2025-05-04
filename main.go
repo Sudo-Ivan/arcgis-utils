@@ -674,49 +674,84 @@ func processSelectedLayer(client *arcgis.Client, layerInfo arcgis.AvailableLayer
 	if !excludeSymbols && layerMetadata.DrawingInfo != nil && layerMetadata.DrawingInfo.Renderer != nil {
 		renderer := layerMetadata.DrawingInfo.Renderer
 
+		// Determine relative path for symbols if saving
+		relativeSymbolsDir := ""
+		if saveSymbols {
+			// Use only the layer name subdirectory for the relative path in KML
+			relativeSymbolsDir = filepath.Join("symbols", actualLayerName)
+		}
+
 		// Handle default symbol
 		if renderer.DefaultSymbol != nil {
+			defaultSymbolCopy := *renderer.DefaultSymbol // Make a copy to modify URL if needed
 			if saveSymbols {
+				symbolFilenameBase := "default"
 				// Save default symbol
-				if err := saveSymbol(renderer.DefaultSymbol, symbolsDir, "default"); err != nil {
+				if err := saveSymbol(&defaultSymbolCopy, symbolsDir, symbolFilenameBase); err != nil {
 					printWarning(fmt.Sprintf("  Warning: Failed to save default symbol: %v", err))
+				} else {
+					// Update URL to relative path
+					ext := getSymbolFileExtension(&defaultSymbolCopy)
+					defaultSymbolCopy.URL = filepath.ToSlash(filepath.Join(relativeSymbolsDir, symbolFilenameBase+ext)) // Use forward slashes for KML
 				}
 			}
 			for i := range features {
 				if features[i].Attributes == nil {
 					features[i].Attributes = make(map[string]interface{})
 				}
-				features[i].Attributes["symbol"] = renderer.DefaultSymbol
+				features[i].Attributes["symbol"] = &defaultSymbolCopy // Use the (potentially modified) copy
 			}
 		}
 
 		// Handle unique value renderer
-		if renderer.Type == "uniqueValue" && len(renderer.UniqueValueGroups) > 0 {
+		if renderer.Type == "uniqueValue" && renderer.Field1 != "" && len(renderer.UniqueValueGroups) > 0 {
+			// Create a map for faster symbol lookup based on attribute value
+			symbolMap := make(map[string]*arcgis.Symbol)
 			for _, group := range renderer.UniqueValueGroups {
 				for _, class := range group.Classes {
 					if class.Symbol != nil {
+						classSymbolCopy := *class.Symbol // Make a copy
 						if saveSymbols {
+							// Sanitize label for filename
+							safLabel := regexp.MustCompile(`[<>:"/\|?*\s]`).ReplaceAllString(class.Label, "_")
+							if safLabel == "" {
+								safLabel = fmt.Sprintf("class_%d", len(symbolMap)) // Fallback name
+							}
+							symbolFilenameBase := fmt.Sprintf("class_%s", safLabel)
 							// Save class symbol
-							symbolName := fmt.Sprintf("class_%s", strings.ReplaceAll(class.Label, " ", "_"))
-							if err := saveSymbol(class.Symbol, symbolsDir, symbolName); err != nil {
-								printWarning(fmt.Sprintf("  Warning: Failed to save class symbol %s: %v", symbolName, err))
+							if err := saveSymbol(&classSymbolCopy, symbolsDir, symbolFilenameBase); err != nil {
+								printWarning(fmt.Sprintf("  Warning: Failed to save class symbol %s: %v", symbolFilenameBase, err))
+							} else {
+								// Update URL to relative path
+								text := getSymbolFileExtension(&classSymbolCopy)
+								classSymbolCopy.URL = filepath.ToSlash(filepath.Join(relativeSymbolsDir, symbolFilenameBase+text))
 							}
 						}
-						for i := range features {
-							if features[i].Attributes == nil {
-								features[i].Attributes = make(map[string]interface{})
-							}
-							// Check if feature matches this class's values
-							for _, valueSet := range class.Values {
-								if len(valueSet) > 0 {
-									fieldValue := features[i].Attributes[renderer.Field1]
-									if fieldValue != nil && fmt.Sprintf("%v", fieldValue) == valueSet[0] {
-										features[i].Attributes["symbol"] = class.Symbol
-										break
-									}
-								}
+						// Map values to the potentially modified symbol copy
+						for _, valueSet := range class.Values {
+							if len(valueSet) > 0 {
+								symbolMap[valueSet[0]] = &classSymbolCopy
 							}
 						}
+					}
+				}
+			}
+
+			// Assign symbols to features based on the map
+			for i := range features {
+				if features[i].Attributes == nil {
+					features[i].Attributes = make(map[string]interface{})
+				}
+				// Check if the feature already has a symbol (e.g., default)
+				if _, hasSymbol := features[i].Attributes["symbol"]; hasSymbol {
+					continue // Skip if default symbol was already assigned
+				}
+				// Get the attribute value
+				if fieldValue, ok := features[i].Attributes[renderer.Field1]; ok && fieldValue != nil {
+					fieldValueStr := fmt.Sprintf("%v", fieldValue)
+					// Look up the symbol in the map
+					if mappedSymbol, found := symbolMap[fieldValueStr]; found {
+						features[i].Attributes["symbol"] = mappedSymbol
 					}
 				}
 			}
@@ -897,4 +932,20 @@ func saveSymbol(symbol *arcgis.Symbol, dir, name string) error {
 	}
 
 	return nil
+}
+
+// Helper function to get file extension based on symbol content type
+func getSymbolFileExtension(symbol *arcgis.Symbol) string {
+	ext := ".png" // default
+	if symbol.ContentType != "" {
+		switch symbol.ContentType {
+		case "image/jpeg":
+			ext = ".jpg"
+		case "image/gif":
+			ext = ".gif"
+		case "image/svg+xml":
+			ext = ".svg"
+		}
+	}
+	return ext
 }

@@ -1,6 +1,7 @@
 package export
 
 import (
+	"encoding/base64"
 	"fmt"
 	"strings"
 
@@ -9,14 +10,130 @@ import (
 
 // ConvertGeoJSONToKML converts a GeoJSON FeatureCollection to a KML string.
 func ConvertGeoJSONToKML(geoJSON *convert.GeoJSON, layerName string) (string, error) {
+	var styles strings.Builder
 	var placemarks strings.Builder
+	styleMap := make(map[string]string) // Map to track unique styles
+	imageMap := make(map[string]string) // Map to track embedded images
+
+	// First pass: collect all unique styles and images
+	for _, feature := range geoJSON.Features {
+		// Try to get symbol from feature's Symbol field first
+		if feature.Symbol != nil {
+			styleID := generateStyleID(feature.Symbol)
+			if _, exists := styleMap[styleID]; !exists {
+				// Handle embedded image if present
+				if feature.Symbol.ImageData != "" {
+					feature.Symbol.URL = fmt.Sprintf("data:%s;base64,%s",
+						feature.Symbol.ContentType,
+						feature.Symbol.ImageData)
+				}
+				styleMap[styleID] = generateKMLStyle(feature.Symbol)
+			}
+		} else if symbolData, ok := feature.Properties["symbol"]; ok {
+			if symbolMap, ok := symbolData.(map[string]interface{}); ok {
+				symbol := &convert.Symbol{
+					Type:        getString(symbolMap, "type"),
+					URL:         getString(symbolMap, "url"),
+					ImageData:   getString(symbolMap, "imageData"),
+					ContentType: getString(symbolMap, "contentType"),
+					Width:       getInt(symbolMap, "width"),
+					Height:      getInt(symbolMap, "height"),
+					XOffset:     getInt(symbolMap, "xoffset"),
+					YOffset:     getInt(symbolMap, "yoffset"),
+					Angle:       getFloat(symbolMap, "angle"),
+				}
+				feature.Symbol = symbol
+				styleID := generateStyleID(symbol)
+				if _, exists := styleMap[styleID]; !exists {
+					if symbol.ImageData != "" {
+						symbol.URL = fmt.Sprintf("data:%s;base64,%s",
+							symbol.ContentType,
+							symbol.ImageData)
+					}
+					styleMap[styleID] = generateKMLStyle(symbol)
+				}
+			}
+		} else if rendererData, ok := feature.Properties["renderer"]; ok {
+			if rendererMap, ok := rendererData.(map[string]interface{}); ok {
+				if rendererType, ok := rendererMap["type"].(string); ok && rendererType == "uniqueValue" {
+					if field1, ok := rendererMap["field1"].(string); ok {
+						if value, ok := feature.Properties[field1]; ok {
+							if groups, ok := rendererMap["uniqueValueGroups"].([]interface{}); ok {
+								for _, group := range groups {
+									if groupMap, ok := group.(map[string]interface{}); ok {
+										if classes, ok := groupMap["classes"].([]interface{}); ok {
+											for _, class := range classes {
+												if classMap, ok := class.(map[string]interface{}); ok {
+													if values, ok := classMap["values"].([]interface{}); ok {
+														for _, val := range values {
+															if valArray, ok := val.([]interface{}); ok && len(valArray) > 0 {
+																if valArray[0] == value {
+																	if symbolMap, ok := classMap["symbol"].(map[string]interface{}); ok {
+																		symbol := &convert.Symbol{
+																			Type:        getString(symbolMap, "type"),
+																			URL:         getString(symbolMap, "url"),
+																			ImageData:   getString(symbolMap, "imageData"),
+																			ContentType: getString(symbolMap, "contentType"),
+																			Width:       getInt(symbolMap, "width"),
+																			Height:      getInt(symbolMap, "height"),
+																			XOffset:     getInt(symbolMap, "xoffset"),
+																			YOffset:     getInt(symbolMap, "yoffset"),
+																			Angle:       getFloat(symbolMap, "angle"),
+																		}
+																		feature.Symbol = symbol
+																		styleID := generateStyleID(symbol)
+																		if _, exists := styleMap[styleID]; !exists {
+																			if symbol.ImageData != "" {
+																				symbol.URL = fmt.Sprintf("data:%s;base64,%s",
+																					symbol.ContentType,
+																					symbol.ImageData)
+																			}
+																			styleMap[styleID] = generateKMLStyle(symbol)
+																		}
+																	}
+																}
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Write all styles
+	for styleID, styleXML := range styleMap {
+		styles.WriteString(fmt.Sprintf(`
+        <Style id="%s">
+            %s
+        </Style>`, styleID, styleXML))
+	}
+
+	// Write all embedded images
+	for imageID, imageData := range imageMap {
+		styles.WriteString(fmt.Sprintf(`
+        <GroundOverlay id="%s">
+            <Icon>
+                <href>data:%s;base64,%s</href>
+            </Icon>
+        </GroundOverlay>`, imageID, getContentType(imageData), imageData))
+	}
+
+	// Second pass: write placemarks with style references
 	for _, feature := range geoJSON.Features {
 		if feature.Geometry == nil {
 			continue
 		}
 
 		name := getFeatureName(feature)
-		description := formatProperties(feature.Properties)
+		description := formatProperties(feature.Properties, "<br>")
 
 		geometryMap := feature.Geometry.(map[string]interface{})
 		geometryType := geometryMap["type"].(string)
@@ -65,23 +182,156 @@ func ConvertGeoJSONToKML(geoJSON *convert.GeoJSON, layerName string) (string, er
 		}
 
 		if geometryString != "" {
+			styleRef := ""
+			if feature.Symbol != nil {
+				styleID := generateStyleID(feature.Symbol)
+				styleRef = fmt.Sprintf(`<styleUrl>#%s</styleUrl>`, styleID)
+			}
+
 			placemarks.WriteString(fmt.Sprintf(`
         <Placemark>
             <name>%s</name>
             <description><![CDATA[%s]]></description>
             %s
-        </Placemark>`, escapeXML(name), description, geometryString))
+            %s
+        </Placemark>`, escapeXML(name), description, styleRef, geometryString))
 		}
 	}
 
 	kml := fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
     <Document>
-        <name>%s</name>%s
+        <name>%s</name>%s%s
     </Document>
-</kml>`, escapeXML(layerName), placemarks.String())
+</kml>`, escapeXML(layerName), styles.String(), placemarks.String())
 
 	return kml, nil
+}
+
+// getContentType determines the content type from base64 data.
+func getContentType(base64Data string) string {
+	if len(base64Data) < 20 {
+		return "image/png" // Default to PNG if data is too short
+	}
+
+	decoded, err := base64.StdEncoding.DecodeString(base64Data[:20])
+	if err != nil {
+		return "image/png" // Default to PNG on error
+	}
+
+	if len(decoded) >= 2 {
+		switch {
+		case decoded[0] == 0xFF && decoded[1] == 0xD8:
+			return "image/jpeg"
+		case decoded[0] == 0x89 && decoded[1] == 0x50:
+			return "image/png"
+		case decoded[0] == 0x47 && decoded[1] == 0x49:
+			return "image/gif"
+		case decoded[0] == 0x3C && decoded[1] == 0x3F:
+			return "image/svg+xml"
+		}
+	}
+
+	return "image/png" // Default to PNG if no match
+}
+
+// generateStyleID creates a unique style ID for a symbol.
+func generateStyleID(symbol *convert.Symbol) string {
+	return fmt.Sprintf("style_%s_%d_%d_%d_%d_%.2f",
+		symbol.Type,
+		symbol.Width,
+		symbol.Height,
+		symbol.XOffset,
+		symbol.YOffset,
+		symbol.Angle)
+}
+
+// generateKMLStyle creates a KML style based on the symbol type.
+func generateKMLStyle(symbol *convert.Symbol) string {
+	switch symbol.Type {
+	case "esriPMS", "esriSMS":
+		return generatePictureMarkerStyle(symbol)
+	case "esriSLS":
+		return generateSimpleLineStyle(symbol)
+	case "esriSFS":
+		return generateSimpleFillStyle(symbol)
+	default:
+		return generateDefaultStyle()
+	}
+}
+
+// generatePictureMarkerStyle creates a KML style for picture markers.
+func generatePictureMarkerStyle(symbol *convert.Symbol) string {
+	scale := 1.0
+	if symbol.Width > 0 && symbol.Height > 0 {
+		scale = float64(symbol.Width) / 32.0 // Normalize to a reasonable size
+	}
+
+	return fmt.Sprintf(`
+            <IconStyle>
+                <scale>%.2f</scale>
+                <heading>%.2f</heading>
+                <Icon>
+                    <href>%s</href>
+                </Icon>
+                <hotSpot x="%.2f" y="%.2f" xunits="fraction" yunits="fraction"/>
+            </IconStyle>
+            <LabelStyle>
+                <scale>1.0</scale>
+            </LabelStyle>`,
+		scale,
+		symbol.Angle,
+		symbol.URL,
+		float64(symbol.XOffset)/float64(symbol.Width),
+		float64(symbol.YOffset)/float64(symbol.Height))
+}
+
+// generateSimpleLineStyle creates a KML style for simple lines.
+func generateSimpleLineStyle(symbol *convert.Symbol) string {
+	width := 2
+	if symbol.Width > 0 {
+		width = symbol.Width
+	}
+
+	return fmt.Sprintf(`
+            <LineStyle>
+                <width>%d</width>
+                <color>ff0000ff</color>
+            </LineStyle>
+            <LabelStyle>
+                <scale>1.0</scale>
+            </LabelStyle>`, width)
+}
+
+// generateSimpleFillStyle creates a KML style for simple fills.
+func generateSimpleFillStyle(symbol *convert.Symbol) string {
+	return `
+            <PolyStyle>
+                <color>7f0000ff</color>
+                <fill>1</fill>
+                <outline>1</outline>
+            </PolyStyle>
+            <LineStyle>
+                <width>2</width>
+                <color>ff0000ff</color>
+            </LineStyle>
+            <LabelStyle>
+                <scale>1.0</scale>
+            </LabelStyle>`
+}
+
+// generateDefaultStyle creates a default KML style.
+func generateDefaultStyle() string {
+	return `
+            <IconStyle>
+                <scale>1.0</scale>
+                <Icon>
+                    <href>http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png</href>
+                </Icon>
+            </IconStyle>
+            <LabelStyle>
+                <scale>1.0</scale>
+            </LabelStyle>`
 }
 
 // getFeatureName extracts a suitable name from a GeoJSON feature's properties.
@@ -103,7 +353,7 @@ func formatProperties(props map[string]interface{}, separator ...string) string 
 	}
 	var parts []string
 	for k, v := range props {
-		if k == "geometry" {
+		if k == "geometry" || k == "symbol" {
 			continue
 		}
 		parts = append(parts, fmt.Sprintf("<strong>%s</strong>: %v", escapeXML(k), escapeXML(fmt.Sprintf("%v", v))))
@@ -121,4 +371,34 @@ func escapeXML(s string) string {
 		"'", "&apos;",
 		"/", "&#x2F;",
 	).Replace(s)
+}
+
+// getString extracts a string value from a map.
+func getString(m map[string]interface{}, key string) string {
+	if val, ok := m[key]; ok {
+		if str, ok := val.(string); ok {
+			return str
+		}
+	}
+	return ""
+}
+
+// getInt extracts an integer value from a map.
+func getInt(m map[string]interface{}, key string) int {
+	if val, ok := m[key]; ok {
+		if num, ok := val.(float64); ok {
+			return int(num)
+		}
+	}
+	return 0
+}
+
+// getFloat extracts a float64 value from a map.
+func getFloat(m map[string]interface{}, key string) float64 {
+	if val, ok := m[key]; ok {
+		if num, ok := val.(float64); ok {
+			return num
+		}
+	}
+	return 0
 }

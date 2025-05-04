@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/Sudo-Ivan/arcgis-utils/pkg/arcgis"
 )
 
 // ConvertToGeoJSON converts a slice of Feature structs to a GeoJSON FeatureCollection.
@@ -101,19 +103,24 @@ func ConvertToGeoJSON(features []Feature) (*GeoJSON, error) {
 
 			// Add symbol information if available in attributes
 			if symbolData, ok := feature.Attributes["symbol"]; ok {
-				if symbolMap, ok := symbolData.(map[string]interface{}); ok {
+				// Attempt to cast the attribute value to *arcgis.Symbol
+				if arcSymbol, castOk := symbolData.(*arcgis.Symbol); castOk && arcSymbol != nil {
+					// Create a convert.Symbol and copy fields
 					symbol := &Symbol{
-						Type:        getString(symbolMap, "type"),
-						URL:         getString(symbolMap, "url"),
-						ImageData:   getString(symbolMap, "imageData"),
-						ContentType: getString(symbolMap, "contentType"),
-						Width:       getInt(symbolMap, "width"),
-						Height:      getInt(symbolMap, "height"),
-						XOffset:     getInt(symbolMap, "xoffset"),
-						YOffset:     getInt(symbolMap, "yoffset"),
-						Angle:       getFloat(symbolMap, "angle"),
+						Type:        arcSymbol.Type,
+						URL:         arcSymbol.URL,
+						ImageData:   arcSymbol.ImageData,
+						ContentType: arcSymbol.ContentType,
+						Width:       arcSymbol.Width,
+						Height:      arcSymbol.Height,
+						XOffset:     arcSymbol.XOffset,
+						YOffset:     arcSymbol.YOffset,
+						Angle:       arcSymbol.Angle,
 					}
 					geoJSONFeature.Symbol = symbol
+				} else {
+					// Optional: Add logging or warning if casting fails or symbol is nil
+					// fmt.Printf("Warning: Could not cast symbol attribute or symbol was nil for feature.\n")
 				}
 			}
 
