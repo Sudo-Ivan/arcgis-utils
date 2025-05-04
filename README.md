@@ -1,5 +1,7 @@
 # arcgis-utils-go
 
+[![Socket Badge](https://socket.dev/api/badge/go/package/github.com/Sudo-Ivan/arcgis-utils?version=v0.6.0)](https://socket.dev/go/package/github.com/Sudo-Ivan/arcgis-utils?version=v0.6.0)
+
 A command-line tool written in Go to download data from various **public** ArcGIS sources (Feature Layers, Feature Servers, Map Servers, ArcGIS Online Items including Web Maps) and convert it to common geospatial formats.
 
 ## Features
