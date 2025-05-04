@@ -70,7 +70,7 @@ This will create an executable named `arcgis-utils` (or `arcgis-utils.exe` on Wi
 ## Usage
 
 ```bash
-./arcgis-utils -url <ARCGIS_URL> [OPTIONS]
+arcgis-utils -url <ARCGIS_URL> [OPTIONS]
 ```
 
 Docker Build:
