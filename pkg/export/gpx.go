@@ -1,3 +1,7 @@
+// Copyright (c) 2024 Sudo-Ivan
+// Licensed under the MIT License
+
+// Package export provides functions for converting GeoJSON data to various export formats.
 package export
 
 import (
@@ -8,6 +12,18 @@ import (
 )
 
 // ConvertGeoJSONToGPX converts a GeoJSON FeatureCollection to a GPX string.
+// The function handles:
+//   - Point geometries as waypoints
+//   - LineString geometries as tracks
+//   - Polygon geometries as track boundaries
+//
+// Parameters:
+//   - geoJSON: Pointer to a GeoJSON FeatureCollection
+//   - layerName: Name of the layer to be used in the GPX metadata
+//
+// Returns:
+//   - string: GPX document as a string
+//   - error: Any error that occurred during conversion
 func ConvertGeoJSONToGPX(geoJSON *convert.GeoJSON, layerName string) (string, error) {
 	var waypoints strings.Builder
 	var tracks strings.Builder

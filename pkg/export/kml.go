@@ -1,3 +1,7 @@
+// Copyright (c) 2024 Sudo-Ivan
+// Licensed under the MIT License
+
+// Package export provides functions for converting GeoJSON data to various export formats.
 package export
 
 import (
@@ -9,6 +13,19 @@ import (
 )
 
 // ConvertGeoJSONToKML converts a GeoJSON FeatureCollection to a KML string.
+// The function handles:
+//   - Point, LineString, and Polygon geometries
+//   - Feature properties and attributes
+//   - Symbol styling and icons
+//   - Embedded images and base64 data
+//
+// Parameters:
+//   - geoJSON: Pointer to a GeoJSON FeatureCollection
+//   - layerName: Name of the layer to be used in the KML document
+//
+// Returns:
+//   - string: KML document as a string
+//   - error: Any error that occurred during conversion
 func ConvertGeoJSONToKML(geoJSON *convert.GeoJSON, layerName string) (string, error) {
 	var styles strings.Builder
 	var placemarks strings.Builder
@@ -209,6 +226,13 @@ func ConvertGeoJSONToKML(geoJSON *convert.GeoJSON, layerName string) (string, er
 }
 
 // getContentType determines the content type from base64 data.
+// It examines the first few bytes of the decoded data to identify common image formats:
+//   - JPEG: Starts with 0xFF 0xD8
+//   - PNG: Starts with 0x89 0x50
+//   - GIF: Starts with 0x47 0x49
+//   - SVG: Starts with 0x3C 0x3F
+//
+// Returns "image/png" as default if format cannot be determined.
 func getContentType(base64Data string) string {
 	if len(base64Data) < 20 {
 		return "image/png" // Default to PNG if data is too short
@@ -236,6 +260,7 @@ func getContentType(base64Data string) string {
 }
 
 // generateStyleID creates a unique style ID for a symbol.
+// The ID is based on the symbol's type, dimensions, offset, and angle.
 func generateStyleID(symbol *convert.Symbol) string {
 	return fmt.Sprintf("style_%s_%d_%d_%d_%d_%.2f",
 		symbol.Type,
@@ -247,6 +272,11 @@ func generateStyleID(symbol *convert.Symbol) string {
 }
 
 // generateKMLStyle creates a KML style based on the symbol type.
+// Supports the following symbol types:
+//   - esriPMS: Picture marker symbol
+//   - esriSMS: Simple marker symbol
+//   - esriSLS: Simple line symbol
+//   - esriSFS: Simple fill symbol
 func generateKMLStyle(symbol *convert.Symbol) string {
 	switch symbol.Type {
 	case "esriPMS", "esriSMS":
@@ -261,6 +291,7 @@ func generateKMLStyle(symbol *convert.Symbol) string {
 }
 
 // generatePictureMarkerStyle creates a KML style for picture markers.
+// Handles icon scaling, rotation, and hotspot positioning.
 func generatePictureMarkerStyle(symbol *convert.Symbol) string {
 	scale := 1.0
 	if symbol.Width > 0 && symbol.Height > 0 {
@@ -287,6 +318,7 @@ func generatePictureMarkerStyle(symbol *convert.Symbol) string {
 }
 
 // generateSimpleLineStyle creates a KML style for simple lines.
+// Sets line width and color.
 func generateSimpleLineStyle(symbol *convert.Symbol) string {
 	width := 2
 	if symbol.Width > 0 {
@@ -304,6 +336,7 @@ func generateSimpleLineStyle(symbol *convert.Symbol) string {
 }
 
 // generateSimpleFillStyle creates a KML style for simple fills.
+// Sets polygon fill color, outline, and label style.
 func generateSimpleFillStyle(symbol *convert.Symbol) string {
 	return `
             <PolyStyle>
@@ -321,6 +354,7 @@ func generateSimpleFillStyle(symbol *convert.Symbol) string {
 }
 
 // generateDefaultStyle creates a default KML style.
+// Uses a standard placemark circle icon.
 func generateDefaultStyle() string {
 	return `
             <IconStyle>
@@ -335,6 +369,8 @@ func generateDefaultStyle() string {
 }
 
 // getFeatureName extracts a suitable name from a GeoJSON feature's properties.
+// Checks common property names in order: name, Name, NAME, title, Title, TITLE, OBJECTID, FID.
+// Returns "Feature" if no suitable name is found.
 func getFeatureName(feature convert.GeoJSONFeature) string {
 	props := feature.Properties
 	for _, key := range []string{"name", "Name", "NAME", "title", "Title", "TITLE", "OBJECTID", "FID"} {
@@ -346,6 +382,8 @@ func getFeatureName(feature convert.GeoJSONFeature) string {
 }
 
 // formatProperties formats a map of properties into a string.
+// Excludes geometry and symbol properties.
+// Uses HTML formatting for better readability in KML.
 func formatProperties(props map[string]interface{}, separator ...string) string {
 	sep := "<br>"
 	if len(separator) > 0 {
@@ -362,6 +400,7 @@ func formatProperties(props map[string]interface{}, separator ...string) string 
 }
 
 // escapeXML escapes XML special characters in a string.
+// Handles: &, <, >, ", ', and / characters.
 func escapeXML(s string) string {
 	return strings.NewReplacer(
 		"&", "&amp;",
@@ -374,6 +413,7 @@ func escapeXML(s string) string {
 }
 
 // getString extracts a string value from a map.
+// Returns empty string if key doesn't exist or value is not a string.
 func getString(m map[string]interface{}, key string) string {
 	if val, ok := m[key]; ok {
 		if str, ok := val.(string); ok {
@@ -384,6 +424,7 @@ func getString(m map[string]interface{}, key string) string {
 }
 
 // getInt extracts an integer value from a map.
+// Returns 0 if key doesn't exist or value is not a number.
 func getInt(m map[string]interface{}, key string) int {
 	if val, ok := m[key]; ok {
 		if num, ok := val.(float64); ok {
@@ -394,6 +435,7 @@ func getInt(m map[string]interface{}, key string) int {
 }
 
 // getFloat extracts a float64 value from a map.
+// Returns 0 if key doesn't exist or value is not a number.
 func getFloat(m map[string]interface{}, key string) float64 {
 	if val, ok := m[key]; ok {
 		if num, ok := val.(float64); ok {

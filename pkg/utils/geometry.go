@@ -1,3 +1,7 @@
+// Copyright (c) 2024 Sudo-Ivan
+// Licensed under the MIT License
+
+// Package utils provides utility functions for handling geometry conversions and transformations.
 package utils
 
 import (
@@ -5,7 +9,14 @@ import (
 	"strings"
 )
 
-// GeometryToWKT converts a geometry interface to a WKT string.
+// GeometryToWKT converts a geometry interface to a Well-Known Text (WKT) string.
+// It supports the following geometry types:
+//   - Point: Converts x,y coordinates to "POINT (x y)"
+//   - LineString: Converts array of points to "LINESTRING (x1 y1, x2 y2, ...)"
+//   - Polygon: Converts array of rings to "POLYGON ((x1 y1, x2 y2, ...), (x1 y1, x2 y2, ...))"
+//
+// The function handles ArcGIS geometry format and ensures rings are closed for polygons.
+// Returns an empty string if the geometry is nil or invalid.
 func GeometryToWKT(geometry interface{}) string {
 	if geometry == nil {
 		return ""

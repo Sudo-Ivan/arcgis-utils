@@ -1,3 +1,44 @@
+// Copyright (c) 2024 Sudo-Ivan
+// Licensed under the MIT License
+
+// Package main implements a command-line tool to download data from various public ArcGIS sources
+// and convert it to common geospatial formats. It supports Feature Layers, Feature Servers,
+// Map Servers, and ArcGIS Online Items including Web Maps.
+//
+// The tool provides interactive layer selection, concurrent processing, and various output formats
+// including GeoJSON, KML, GPX, CSV, JSON, and Text. It also handles symbol information and
+// supports custom output naming and request timeouts.
+//
+// Usage:
+//
+//	arcgis-utils [-format format] [-output dir] [-select-all] [-overwrite] [-skip-existing]
+//	             [-prefix prefix] [-timeout seconds] [-exclude-symbols] [-save-symbols] -url <ARCGIS_URL>
+//
+// Flags:
+//
+//	-url string
+//	      ArcGIS resource URL (required)
+//	-format string
+//	      Output format (geojson, kml, gpx, csv, json, text) (default "geojson")
+//	-output string
+//	      Output directory (default: current directory)
+//	-select-all
+//	      Process all layers without prompting
+//	-overwrite
+//	      Overwrite existing output files
+//	-skip-existing
+//	      Skip processing if output file exists
+//	-prefix string
+//	      Add prefix to output filenames
+//	-timeout int
+//	      HTTP request timeout in seconds (default 30)
+//	-exclude-symbols
+//	      Exclude symbol information from output
+//	-save-symbols
+//	      Save symbology to separate folder
+//	-no-color
+//	      Disable colored terminal output
+
 package main
 
 import (

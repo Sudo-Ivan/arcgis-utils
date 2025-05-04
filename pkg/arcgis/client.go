@@ -1,3 +1,8 @@
+// Copyright (c) 2024 Sudo-Ivan
+// Licensed under the MIT License
+
+// Package arcgis provides functionality for interacting with ArcGIS REST services and ArcGIS Online.
+// It includes client implementations for fetching and processing data from various ArcGIS endpoints.
 package arcgis
 
 import (
@@ -12,12 +17,18 @@ import (
 )
 
 // Client represents an ArcGIS client with configuration.
+// It handles HTTP requests to ArcGIS services with configurable timeouts.
 type Client struct {
 	HTTPClient *http.Client
 	Timeout    time.Duration
 }
 
 // NewClient creates a new ArcGIS client with the specified timeout.
+// Parameters:
+//   - timeout: Duration for HTTP request timeouts
+//
+// Returns:
+//   - *Client: Configured ArcGIS client instance
 func NewClient(timeout time.Duration) *Client {
 	return &Client{
 		HTTPClient: &http.Client{
@@ -28,11 +39,27 @@ func NewClient(timeout time.Duration) *Client {
 }
 
 // IsArcGISOnlineItemURL checks if a URL points to an ArcGIS Online item page.
+// Parameters:
+//   - rawURL: The URL to check
+//
+// Returns:
+//   - bool: True if the URL is an ArcGIS Online item page URL
 func IsArcGISOnlineItemURL(rawURL string) bool {
 	return strings.Contains(strings.ToLower(rawURL), "arcgis.com/home/item.html")
 }
 
-// NormalizeArcGISURL normalizes an ArcGIS URL.
+// NormalizeArcGISURL normalizes an ArcGIS URL to a standard format.
+// It handles:
+//   - Adding https scheme if missing
+//   - Normalizing path casing for service URLs
+//   - Managing trailing slashes
+//   - Removing unnecessary query parameters
+//
+// Parameters:
+//   - rawURL: The URL to normalize
+//
+// Returns:
+//   - string: Normalized URL
 func NormalizeArcGISURL(rawURL string) string {
 	lowerURL := strings.ToLower(rawURL)
 	isArcGISService := strings.Contains(lowerURL, "/rest/services") || strings.Contains(lowerURL, "/arcgis/rest")
@@ -118,6 +145,11 @@ func NormalizeArcGISURL(rawURL string) string {
 }
 
 // IsValidHTTPURL checks if a URL is a valid HTTP or HTTPS URL.
+// Parameters:
+//   - rawURL: The URL to validate
+//
+// Returns:
+//   - bool: True if the URL is a valid HTTP/HTTPS URL
 func IsValidHTTPURL(rawURL string) bool {
 	u, err := url.Parse(rawURL)
 	if err != nil {
@@ -127,6 +159,12 @@ func IsValidHTTPURL(rawURL string) bool {
 }
 
 // FetchAndDecode fetches data from a URL and decodes it into the target interface.
+// Parameters:
+//   - urlStr: The URL to fetch data from
+//   - target: Pointer to the target struct for JSON decoding
+//
+// Returns:
+//   - error: Any error that occurred during the fetch or decode operation
 func (c *Client) FetchAndDecode(urlStr string, target interface{}) error {
 	req, err := http.NewRequest("GET", urlStr, nil)
 	if err != nil {
@@ -154,6 +192,13 @@ func (c *Client) FetchAndDecode(urlStr string, target interface{}) error {
 }
 
 // FetchFeatures fetches features from an ArcGIS FeatureServer layer.
+// Parameters:
+//   - baseURL: Base URL of the FeatureServer
+//   - layerID: ID of the layer to fetch features from
+//
+// Returns:
+//   - []Feature: Slice of features from the layer
+//   - error: Any error that occurred during the fetch operation
 func (c *Client) FetchFeatures(baseURL, layerID string) ([]Feature, error) {
 	queryURL := fmt.Sprintf("%s/%s/query", baseURL, layerID)
 	u, _ := url.Parse(queryURL)
@@ -205,6 +250,13 @@ func (c *Client) FetchFeatures(baseURL, layerID string) ([]Feature, error) {
 }
 
 // FetchServiceLayers fetches the layers from an ArcGIS Feature Server or Map Server.
+// Parameters:
+//   - serviceURL: URL of the ArcGIS service
+//   - serviceType: Type of service ("FeatureServer" or "MapServer")
+//
+// Returns:
+//   - []AvailableLayerInfo: Information about available layers
+//   - error: Any error that occurred during the fetch operation
 func (c *Client) FetchServiceLayers(serviceURL string, serviceType string) ([]AvailableLayerInfo, error) {
 	fetchURL := fmt.Sprintf("%s?f=json", serviceURL)
 	fmt.Printf("    Fetching service metadata: %s\n", fetchURL)
@@ -311,6 +363,12 @@ func (c *Client) FetchServiceLayers(serviceURL string, serviceType string) ([]Av
 }
 
 // HandleArcGISOnlineItem handles processing for an ArcGIS Online item URL.
+// Parameters:
+//   - itemPageURL: URL of the ArcGIS Online item page
+//
+// Returns:
+//   - *ItemData: Metadata about the item
+//   - error: Any error that occurred during processing
 func (c *Client) HandleArcGISOnlineItem(itemPageURL string) (*ItemData, error) {
 	re := regexp.MustCompile(`id=([a-f0-9]+)`)
 	matches := re.FindStringSubmatch(itemPageURL)
@@ -336,6 +394,12 @@ func (c *Client) HandleArcGISOnlineItem(itemPageURL string) (*ItemData, error) {
 }
 
 // HandleWebMap handles processing for an ArcGIS Online Web Map item.
+// Parameters:
+//   - itemID: ID of the Web Map item
+//
+// Returns:
+//   - *WebMapData: Data from the Web Map
+//   - error: Any error that occurred during processing
 func (c *Client) HandleWebMap(itemID string) (*WebMapData, error) {
 	webMapDataURL := fmt.Sprintf("https://www.arcgis.com/sharing/rest/content/items/%s/data?f=json", itemID)
 	fmt.Printf("  Fetching Web Map data: %s\n", webMapDataURL)

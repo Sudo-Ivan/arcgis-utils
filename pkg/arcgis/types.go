@@ -1,6 +1,12 @@
+// Copyright (c) 2024 Sudo-Ivan
+// Licensed under the MIT License
+
+// Package arcgis provides functionality for interacting with ArcGIS REST services and ArcGIS Online.
+// It includes type definitions for ArcGIS service responses and metadata structures.
 package arcgis
 
 // FeatureServerMetadata represents the metadata for an ArcGIS Feature Server.
+// It contains information about the server version, available layers, and service details.
 type FeatureServerMetadata struct {
 	CurrentVersion string  `json:"currentVersion"`
 	Layers         []Layer `json:"layers"`
@@ -14,6 +20,7 @@ type FeatureServerMetadata struct {
 }
 
 // Layer represents a layer in an ArcGIS Feature Server or Map Server.
+// It contains metadata about the layer's type, geometry, and rendering information.
 type Layer struct {
 	ID           interface{}  `json:"id"`
 	Name         string       `json:"name"`
@@ -27,11 +34,13 @@ type Layer struct {
 }
 
 // DrawingInfo represents drawing information for a layer.
+// It contains the renderer configuration for visualizing the layer's features.
 type DrawingInfo struct {
 	Renderer *Renderer `json:"renderer"`
 }
 
 // Renderer represents the renderer for a layer.
+// It defines how features should be displayed, including symbols and value-based styling.
 type Renderer struct {
 	Type              string             `json:"type"`
 	Field1            string             `json:"field1"`
@@ -41,6 +50,7 @@ type Renderer struct {
 }
 
 // Symbol represents a symbol used for rendering features.
+// It defines the visual appearance of features, including images, sizes, and offsets.
 type Symbol struct {
 	Type        string  `json:"type"`
 	URL         string  `json:"url"`
@@ -54,12 +64,14 @@ type Symbol struct {
 }
 
 // UniqueValueGroup represents a group of unique values for rendering.
+// It organizes feature values into categories for styling.
 type UniqueValueGroup struct {
 	Heading string             `json:"heading"`
 	Classes []UniqueValueClass `json:"classes"`
 }
 
 // UniqueValueClass represents a class of unique values for rendering.
+// It defines the styling for a specific set of feature values.
 type UniqueValueClass struct {
 	Label       string     `json:"label"`
 	Description string     `json:"description"`
@@ -68,6 +80,7 @@ type UniqueValueClass struct {
 }
 
 // FeatureResponse represents the response from a feature query.
+// It contains the requested features and any transfer limit information.
 type FeatureResponse struct {
 	Features              []Feature `json:"features"`
 	ExceededTransferLimit bool      `json:"exceededTransferLimit"`
@@ -77,12 +90,14 @@ type FeatureResponse struct {
 }
 
 // Feature represents a geographic feature with attributes and geometry.
+// It contains the feature's properties and spatial data.
 type Feature struct {
 	Attributes map[string]interface{} `json:"attributes"`
 	Geometry   interface{}            `json:"geometry"`
 }
 
 // ItemData represents metadata for an ArcGIS Online item.
+// It contains information about the item's type, title, and URL.
 type ItemData struct {
 	ID    string `json:"id"`
 	Name  string `json:"name"`
@@ -95,6 +110,7 @@ type ItemData struct {
 }
 
 // WebMapData represents data for an ArcGIS Online Web Map.
+// It contains the operational layers and their configurations.
 type WebMapData struct {
 	OperationalLayers []OperationalLayer `json:"operationalLayers"`
 	Error             *struct {
@@ -103,6 +119,7 @@ type WebMapData struct {
 }
 
 // OperationalLayer represents an operational layer in a Web Map.
+// It defines a layer's properties, including its type, title, and data source.
 type OperationalLayer struct {
 	ID                string             `json:"id"`
 	Title             string             `json:"title"`
@@ -116,6 +133,7 @@ type OperationalLayer struct {
 }
 
 // FeatureCollectionLayer represents a layer within a FeatureCollection.
+// It contains the layer definition and feature set for a collection of features.
 type FeatureCollectionLayer struct {
 	ID              int                    `json:"id"`
 	LayerDefinition map[string]interface{} `json:"layerDefinition"`
@@ -125,6 +143,7 @@ type FeatureCollectionLayer struct {
 }
 
 // MapServiceMetadata represents the metadata for an ArcGIS Map Service.
+// It contains information about the service's layers and configuration.
 type MapServiceMetadata struct {
 	Name        string            `json:"name"`
 	Layers      []MapServiceLayer `json:"layers"`
@@ -135,6 +154,7 @@ type MapServiceMetadata struct {
 }
 
 // MapServiceLayer represents a layer in an ArcGIS Map Service.
+// It defines the layer's properties, including its hierarchy and geometry type.
 type MapServiceLayer struct {
 	ID            int    `json:"id"`
 	Name          string `json:"name"`
@@ -145,6 +165,7 @@ type MapServiceLayer struct {
 }
 
 // AvailableLayerInfo stores information about a layer available for processing.
+// It combines metadata from different ArcGIS service types into a unified structure.
 type AvailableLayerInfo struct {
 	ID                    string
 	Name                  string

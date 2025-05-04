@@ -1,3 +1,7 @@
+// Copyright (c) 2024 Sudo-Ivan
+// Licensed under the MIT License
+
+// Package convert provides functions for converting between different geospatial data formats.
 package convert
 
 import (
@@ -11,6 +15,19 @@ import (
 )
 
 // ConvertToGeoJSON converts a slice of Feature structs to a GeoJSON FeatureCollection.
+// It handles:
+//   - Point geometries (x,y coordinates)
+//   - LineString geometries (paths)
+//   - Polygon geometries (rings)
+//   - Feature attributes and properties
+//   - Symbol information
+//
+// Parameters:
+//   - features: Slice of Feature structs to convert
+//
+// Returns:
+//   - *GeoJSON: Pointer to the converted GeoJSON FeatureCollection
+//   - error: Any error that occurred during conversion
 func ConvertToGeoJSON(features []Feature) (*GeoJSON, error) {
 	geoJSON := GeoJSON{
 		Type: "FeatureCollection",
@@ -132,6 +149,17 @@ func ConvertToGeoJSON(features []Feature) (*GeoJSON, error) {
 }
 
 // ConvertFeaturesToCSV converts a slice of Feature structs to a CSV string.
+// The CSV includes:
+//   - All unique attribute fields as columns
+//   - WKT geometry representation in the last column
+//   - Sorted column headers for consistency
+//
+// Parameters:
+//   - features: Slice of Feature structs to convert
+//
+// Returns:
+//   - string: CSV formatted string
+//   - error: Any error that occurred during conversion
 func ConvertFeaturesToCSV(features []Feature) (string, error) {
 	if len(features) == 0 {
 		return "", nil
@@ -188,6 +216,18 @@ func ConvertFeaturesToCSV(features []Feature) (string, error) {
 }
 
 // ConvertFeaturesToText converts a slice of Feature structs to a formatted text string.
+// The output includes:
+//   - Layer name and feature count
+//   - Feature attributes in sorted order
+//   - WKT geometry representation
+//
+// Parameters:
+//   - features: Slice of Feature structs to convert
+//   - layerName: Name of the layer for the header
+//
+// Returns:
+//   - string: Formatted text output
+//   - error: Any error that occurred during conversion
 func ConvertFeaturesToText(features []Feature, layerName string) (string, error) {
 	if len(features) == 0 {
 		return "", fmt.Errorf("no features to convert to text")
@@ -229,6 +269,8 @@ func ConvertFeaturesToText(features []Feature, layerName string) (string, error)
 
 // Helper functions
 
+// getString extracts a string value from a map.
+// Returns empty string if key doesn't exist or value is not a string.
 func getString(m map[string]interface{}, key string) string {
 	if val, ok := m[key]; ok {
 		if str, ok := val.(string); ok {
@@ -238,6 +280,8 @@ func getString(m map[string]interface{}, key string) string {
 	return ""
 }
 
+// getInt extracts an integer value from a map.
+// Returns 0 if key doesn't exist or value is not a number.
 func getInt(m map[string]interface{}, key string) int {
 	if val, ok := m[key]; ok {
 		if num, ok := val.(float64); ok {
@@ -247,6 +291,8 @@ func getInt(m map[string]interface{}, key string) int {
 	return 0
 }
 
+// getFloat extracts a float64 value from a map.
+// Returns 0 if key doesn't exist or value is not a number.
 func getFloat(m map[string]interface{}, key string) float64 {
 	if val, ok := m[key]; ok {
 		if num, ok := val.(float64); ok {
@@ -257,6 +303,12 @@ func getFloat(m map[string]interface{}, key string) float64 {
 }
 
 // geometryToWKT converts a geometry interface to a WKT string.
+// Supports:
+//   - Point geometries (x,y coordinates)
+//   - LineString geometries (paths)
+//   - Polygon geometries (rings)
+//
+// Returns empty string if geometry is nil or invalid.
 func geometryToWKT(geometry interface{}) string {
 	if geometry == nil {
 		return ""
