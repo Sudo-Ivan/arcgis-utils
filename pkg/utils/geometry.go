@@ -1,4 +1,4 @@
-// Copyright (c) 2024 Sudo-Ivan
+// Copyright (c) 2025 Sudo-Ivan
 // Licensed under the MIT License
 
 // Package utils provides utility functions for handling geometry conversions and transformations.

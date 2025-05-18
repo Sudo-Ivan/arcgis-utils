@@ -1,4 +1,4 @@
-// Copyright (c) 2024 Sudo-Ivan
+// Copyright (c) 2025 Sudo-Ivan
 // Licensed under the MIT License
 
 // Package convert provides types and functions for converting between different geospatial data formats.

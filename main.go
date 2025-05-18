@@ -1,4 +1,4 @@
-// Copyright (c) 2024 Sudo-Ivan
+// Copyright (c) 2025 Sudo-Ivan
 // Licensed under the MIT License
 
 // Package main implements a command-line tool to download data from various public ArcGIS sources

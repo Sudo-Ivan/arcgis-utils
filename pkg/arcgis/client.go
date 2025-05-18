@@ -1,4 +1,4 @@
-// Copyright (c) 2024 Sudo-Ivan
+// Copyright (c) 2025 Sudo-Ivan
 // Licensed under the MIT License
 
 // Package arcgis provides functionality for interacting with ArcGIS REST services and ArcGIS Online.

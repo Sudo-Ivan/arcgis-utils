@@ -1,4 +1,4 @@
-// Copyright (c) 2024 Sudo-Ivan
+// Copyright (c) 2025 Sudo-Ivan
 // Licensed under the MIT License
 
 // Package export provides functions for converting GeoJSON data to various export formats.
