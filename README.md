@@ -19,7 +19,8 @@ A command-line tool written in Go to download data from various **public** ArcGI
 - [ ] Updating data only if the last edit date has changed
 - [ ] Versioning
 - [ ] ArcGIS API Support
-- [ ] Custom Symbology and Image Support from ArcGIS Layers
+- [ ] Symbology and Image Support from ArcGIS Layers
+- [ ] QGIS Support
 
 ## Installation
 
