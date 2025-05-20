@@ -21,6 +21,7 @@ A command-line tool written in Go to download data from various **public** ArcGI
 - [ ] ArcGIS API Support
 - [ ] Symbology and Image Support from ArcGIS Layers
 - [ ] QGIS Support
+- [ ] KMZ Support
 
 ## Installation
 
