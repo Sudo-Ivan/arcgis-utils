@@ -6,7 +6,7 @@
 // Map Servers, and ArcGIS Online Items including Web Maps.
 //
 // The tool provides interactive layer selection, concurrent processing, and various output formats
-// including GeoJSON, KML, GPX, CSV, JSON, and Text. It also handles symbol information and
+// including GeoJSON, KML, KMZ, GPX, CSV, JSON, and Text. It also handles symbol information and
 // supports custom output naming and request timeouts.
 //
 // Usage:
@@ -19,7 +19,7 @@
 //	-url string
 //	      ArcGIS resource URL (required)
 //	-format string
-//	      Output format (geojson, kml, gpx, csv, json, text) (default "geojson")
+//	      Output format (geojson, kml, kmz, gpx, csv, json, text) (default "geojson")
 //	-output string
 //	      Output directory (default: current directory)
 //	-select-all
@@ -261,7 +261,7 @@ var layersToProcess = make(map[string]arcgis.AvailableLayerInfo)
 
 func main() {
 	urlPtr := flag.String("url", "", "ArcGIS Feature Layer, Feature Server, Map Server, or ArcGIS Online Item URL")
-	formatPtr := flag.String("format", "geojson", "Output format (geojson, kml, gpx, csv, json, txt)")
+	formatPtr := flag.String("format", "geojson", "Output format (geojson, kml, kmz, gpx, csv, json, txt)")
 	outputPtr := flag.String("output", "", "Output directory (default: current directory)")
 	selectAllPtr := flag.Bool("select-all", false, "Select all found Feature Layers automatically (no prompt)")
 	noColorPtr := flag.Bool("no-color", false, "Disable colored output")
@@ -822,6 +822,49 @@ func processSelectedLayer(client *arcgis.Client, layerInfo arcgis.AvailableLayer
 			return fmt.Errorf("failed to convert to KML: %v", err)
 		}
 		fileExt = "kml"
+	case "kmz":
+		geojsonData, err := convert.ConvertToGeoJSON(convertFeatures(features))
+		if err != nil {
+			return fmt.Errorf("failed to convert features to GeoJSON for KMZ: %v", err)
+		}
+		kmzData, err := export.ConvertGeoJSONToKMZ(geojsonData, actualLayerName)
+		if err != nil {
+			return fmt.Errorf("failed to convert to KMZ: %v", err)
+		}
+		// For KMZ, we need to handle binary data differently
+		safeFilenameBase := strings.ReplaceAll(actualLayerName, " ", "_")
+		safeFilenameBase = regexp.MustCompile(`[<>:"/\|?* - ]`).ReplaceAllString(safeFilenameBase, "")
+		if safeFilenameBase == "" {
+			safeFilenameBase = fmt.Sprintf("Layer_%s", layerInfo.ID)
+		}
+		if prefix != "" {
+			safeFilenameBase = prefix + safeFilenameBase
+		}
+
+		filename := fmt.Sprintf("%s.kmz", safeFilenameBase)
+		outputPath := filepath.Join(outputDir, filename)
+
+		if _, err := os.Stat(outputPath); err == nil {
+			if skipExisting {
+				return fmt.Errorf("skipped existing file")
+			}
+			if !overwrite {
+				return fmt.Errorf("output file %s already exists. Use --overwrite or --skip-existing", outputPath)
+			}
+			printWarning(fmt.Sprintf("  Overwriting existing file: %s", outputPath))
+		} else if !os.IsNotExist(err) {
+			return fmt.Errorf("failed to check output file status %s: %v", outputPath, err)
+		}
+
+		if err := os.MkdirAll(outputDir, 0750); err != nil {
+			return fmt.Errorf("failed to create output directory %s: %v", outputDir, err)
+		}
+
+		if err := os.WriteFile(outputPath, kmzData, 0600); err != nil {
+			return fmt.Errorf("failed to write output file %s: %v", outputPath, err)
+		}
+
+		return nil // Early return for KMZ since we handle file writing here
 	case "gpx":
 		geojsonData, err := convert.ConvertToGeoJSON(convertFeatures(features))
 		if err != nil {
