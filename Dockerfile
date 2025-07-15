@@ -2,13 +2,13 @@ FROM golang:1.24-alpine AS builder
 
 WORKDIR /app
 
-COPY go.mod ./
+COPY go.mod go.sum ./
 RUN go mod download
 
-COPY pkg pkg
-COPY main.go main.go
+COPY pkg pkg/
+COPY cmd cmd/
 
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o arcgis-utils
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o arcgis-utils ./cmd/arcgis-utils
 
 # Create wrapper script in builder stage
 RUN echo '#!/bin/sh' > /app/arcgis-utils-wrapper && \
@@ -28,4 +28,4 @@ LABEL org.opencontainers.image.source="https://github.com/Sudo-Ivan/arcgis-utils
 LABEL org.opencontainers.image.licenses="MIT"
 LABEL org.opencontainers.image.authors="Sudo-Ivan"
 
-ENTRYPOINT ["/usr/local/bin/arcgis-utils-wrapper"] 
+ENTRYPOINT ["/usr/local/bin/arcgis-utils-wrapper"]
