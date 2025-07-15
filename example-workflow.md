@@ -9,6 +9,9 @@ on:
   # schedule:
   #   - cron: '0 0 * * *' # Daily at midnight UTC
 
+permissions:
+  contents: write
+
 jobs:
   save-layers:
     runs-on: ubuntu-latest
@@ -23,7 +26,7 @@ jobs:
         go-version: '1.24'
 
     - name: Install arcgis-utils
-      run: go install github.com/Sudo-Ivan/arcgis-utils@latest
+      run: go install github.com/Sudo-Ivan/arcgis-utils/cmd/arcgis-utils@latest
 
     - name: Run arcgis-utils and save layers
       env:

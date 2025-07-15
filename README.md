@@ -41,7 +41,7 @@ Windows Example:
 With Go:
 
 ```bash
-go install github.com/Sudo-Ivan/arcgis-utils@latest
+go install github.com/Sudo-Ivan/arcgis-utils/cmd/arcgis-utils@latest
 ```
 
 ```bash
