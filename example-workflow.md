@@ -1,4 +1,6 @@
 
+Create `save-layers.yml` workflow
+
 ```yaml
 name: Save ArcGIS Layers to Repo
 
@@ -20,15 +22,15 @@ jobs:
       with:
         go-version: '1.24'
 
-    - name: Build arcgis-utils
-      run: go build -o arcgis-utils ./cmd/arcgis-utils
+    - name: Install arcgis-utils
+      run: go install github.com/Sudo-Ivan/arcgis-utils@latest
 
     - name: Run arcgis-utils and save layers
       env:
         OUTPUT_DIR: "arcgis_data"
       run: |
         mkdir -p ${{ env.OUTPUT_DIR }}
-        ./arcgis-utils -layers-csv layers.csv -select-all -versioned-output -output "${{ env.OUTPUT_DIR }}" -format "geojson"
+        arcgis-utils -layers-csv layers.csv -select-all -versioned-output -output "${{ env.OUTPUT_DIR }}" -format "geojson"
 
     - name: Commit and push changes
       run: |
