@@ -6,8 +6,8 @@ name: Save ArcGIS Layers to Repo
 
 on:
   workflow_dispatch: # Allows manual triggering
-  # schedule:
-  #   - cron: '0 0 * * *' # Daily at midnight UTC
+  schedule:
+    - cron: '0 0 */2 * *' # Every two days at midnight UTC
 
 permissions:
   contents: write
@@ -26,22 +26,23 @@ jobs:
         go-version: '1.24'
 
     - name: Install arcgis-utils
-      run: go install github.com/Sudo-Ivan/arcgis-utils/cmd/arcgis-utils@latest
+      run: go install github.com/Sudo-Ivan/arcgis-utils/cmd/arcgis-utils@v0.7.1
 
     - name: Run arcgis-utils and save layers
       env:
         OUTPUT_DIR: "arcgis_data"
       run: |
-        mkdir -p ${{ env.OUTPUT_DIR }}
-        arcgis-utils -layers-csv layers.csv -select-all -versioned-output -output "${{ env.OUTPUT_DIR }}" -format "geojson"
+        DATE_DIR=$(date +%Y-%m-%d)
+        mkdir -p "${{ env.OUTPUT_DIR }}/$DATE_DIR"
+        arcgis-utils -layers-csv layers.csv -select-all -versioned-output -output "${{ env.OUTPUT_DIR }}/$DATE_DIR" -format "geojson"
 
     - name: Commit and push changes
-      run: |
-        git config user.name "github-actions[bot]"
-        git config user.email "github-actions[bot]@users.noreply.github.com"
-        git add ${{ env.OUTPUT_DIR }}
-        git commit -m "Automated: Save ArcGIS layers from layers.csv" || echo "No changes to commit"
-        git push
+      uses: stefanzweifel/git-auto-commit-action@v5
+      with:
+        commit_message: "Automated: Save ArcGIS layers from layers.csv"
+        file_pattern: "arcgis_data/**/*.*"
+        commit_user_name: "github-actions[bot]"
+        commit_user_email: "github-actions[bot]@users.noreply.github.com"
 ```
 
 Create a layers.csv
