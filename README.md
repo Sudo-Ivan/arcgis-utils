@@ -16,12 +16,8 @@ A command-line tool written in Go to download data from various **public** ArcGI
 
 ### To-Do
 
-- [ ] Updating data only if the last edit date has changed
 - [ ] Versioning
 - [ ] ArcGIS API Support
-- [ ] Symbology and Image Support from ArcGIS Layers
-- [ ] QGIS Support
-- [ ] KMZ Support
 
 ## Installation
 
