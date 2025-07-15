@@ -272,27 +272,72 @@ func main() {
 	excludeSymbolsPtr := flag.Bool("exclude-symbols", false, "Exclude symbol information from output")
 	saveSymbolsPtr := flag.Bool("save-symbols", false, "Save symbology/images to a separate folder")
 	versionedOutputPtr := flag.Bool("versioned-output", false, "Append timestamp to output filenames for versioning")
+	layersCSVPtr := flag.String("layers-csv", "", "Path to a CSV file containing a list of ArcGIS layer URLs to process")
 
 	flag.Parse()
 
 	useColor = !*noColorPtr
 
-	if *urlPtr == "" {
-		printError("URL is required")
-		flag.Usage()
-		os.Exit(1)
-	}
+	var inputURLs []string
 
-	inputURL := *urlPtr
-	if !arcgis.IsValidHTTPURL(inputURL) {
-		normalizedURL := arcgis.NormalizeArcGISURL(inputURL)
-		if !arcgis.IsValidHTTPURL(normalizedURL) {
-			fmt.Println("Error: Invalid URL provided.")
+	if *layersCSVPtr != "" {
+		fmt.Printf("Reading layer URLs from CSV: %s\n", *layersCSVPtr)
+		csvFile, err := os.Open(*layersCSVPtr)
+		if err != nil {
+			printError(fmt.Sprintf("Error opening CSV file: %v", err))
 			os.Exit(1)
 		}
-		inputURL = normalizedURL
+		defer csvFile.Close()
+
+		scanner := bufio.NewScanner(csvFile)
+		headerSkipped := false
+		urlColumnIndex := -1
+
+		for scanner.Scan() {
+			line := scanner.Text()
+			parts := strings.Split(line, ",") // Simple CSV parsing, assumes no commas within fields
+
+			if !headerSkipped {
+				for i, part := range parts {
+					if strings.TrimSpace(strings.ToLower(part)) == "url" {
+						urlColumnIndex = i
+						break
+					}
+				}
+				if urlColumnIndex == -1 {
+					printError("CSV file must contain a 'URL' column header.")
+					os.Exit(1)
+				}
+				headerSkipped = true
+				continue
+			}
+
+			if urlColumnIndex < len(parts) {
+				url := strings.TrimSpace(parts[urlColumnIndex])
+				if url != "" {
+					inputURLs = append(inputURLs, url)
+				}
+			}
+		}
+
+		if err := scanner.Err(); err != nil {
+			printError(fmt.Sprintf("Error reading CSV file: %v", err))
+			os.Exit(1)
+		}
+
+		if len(inputURLs) == 0 {
+			printWarning("No URLs found in the provided CSV file.")
+			os.Exit(0)
+		}
+		// Implicitly select all layers if processing from CSV
+		*selectAllPtr = true
+
+	} else if *urlPtr != "" {
+		inputURLs = []string{*urlPtr}
 	} else {
-		inputURL = arcgis.NormalizeArcGISURL(inputURL)
+		printError("Either -url or -layers-csv is required")
+		flag.Usage()
+		os.Exit(1)
 	}
 
 	outputDir := *outputPtr
@@ -302,36 +347,51 @@ func main() {
 
 	client := arcgis.NewClient(time.Duration(*timeoutPtr) * time.Second)
 
-	var err error
-	if arcgis.IsArcGISOnlineItemURL(inputURL) {
-		fmt.Println("Detected ArcGIS Online Item URL...")
-		err = handleArcGISOnlineItem(client, inputURL, *selectAllPtr)
-	} else if strings.Contains(strings.ToLower(inputURL), "/mapserver") {
-		fmt.Println("Detected Map Server URL...")
-		err = handleMapServerURL(client, inputURL, *selectAllPtr)
-	} else if strings.Contains(strings.ToLower(inputURL), "/featureserver") {
-		fmt.Println("Detected Feature Server URL...")
-		err = handleFeatureServerURL(client, inputURL, *selectAllPtr)
-	} else {
-		fmt.Println("Assuming single Feature Layer URL...")
-		parts := strings.Split(inputURL, "/")
-		if len(parts) < 2 {
-			err = fmt.Errorf("invalid single layer URL format")
+	// Process URLs from CSV or single URL
+	for _, currentURL := range inputURLs {
+		var currentErr error // Use a new variable for error in this loop
+		normalizedURL := arcgis.NormalizeArcGISURL(currentURL)
+		if !arcgis.IsValidHTTPURL(normalizedURL) {
+			printError(fmt.Sprintf("Error: Invalid URL provided in CSV or CLI: %s", currentURL))
+			continue // Skip to next URL in CSV
+		}
+		currentURL = normalizedURL
+
+		if arcgis.IsArcGISOnlineItemURL(currentURL) {
+			fmt.Printf("Detected ArcGIS Online Item URL: %s...\n", currentURL)
+			currentErr = handleArcGISOnlineItem(client, currentURL, *selectAllPtr)
+		} else if strings.Contains(strings.ToLower(currentURL), "/mapserver") {
+			fmt.Printf("Detected Map Server URL: %s...\n", currentURL)
+			currentErr = handleMapServerURL(client, currentURL, *selectAllPtr)
+		} else if strings.Contains(strings.ToLower(currentURL), "/featureserver") {
+			fmt.Printf("Detected Feature Server URL: %s...\n", currentURL)
+			currentErr = handleFeatureServerURL(client, currentURL, *selectAllPtr)
 		} else {
-			layerID := parts[len(parts)-1]
-			baseURL := strings.Join(parts[:len(parts)-1], "/")
-			layersToProcess[inputURL] = arcgis.AvailableLayerInfo{
-				ID:             layerID,
-				Name:           fmt.Sprintf("Layer_%s", layerID),
-				ServiceURL:     baseURL,
-				IsFeatureLayer: true,
+			fmt.Printf("Assuming single Feature Layer URL: %s...\n", currentURL)
+			parts := strings.Split(currentURL, "/")
+			if len(parts) < 2 {
+				currentErr = fmt.Errorf("invalid single layer URL format: %s", currentURL)
+			} else {
+				layerID := parts[len(parts)-1]
+				baseURL := strings.Join(parts[:len(parts)-1], "/")
+				layersToProcess[currentURL] = arcgis.AvailableLayerInfo{
+					ID:             layerID,
+					Name:           fmt.Sprintf("Layer_%s", layerID),
+					ServiceURL:     baseURL,
+					IsFeatureLayer: true,
+				}
 			}
+		}
+
+		if currentErr != nil {
+			printError(fmt.Sprintf("Error identifying or fetching initial data for %s: %v", currentURL, currentErr))
+			// Do not os.Exit(1) here, continue processing other URLs from CSV
 		}
 	}
 
-	if err != nil {
-		printError(fmt.Sprintf("Error identifying or fetching initial data: %v", err))
-		os.Exit(1)
+	if len(layersToProcess) == 0 {
+		printInfo("No Feature Layers were selected or found to process.")
+		os.Exit(0)
 	}
 
 	if len(layersToProcess) == 0 {
