@@ -13,10 +13,11 @@ A command-line tool written in Go to download data from various **public** ArcGI
 | Interactive Layer Selection                  | Provides interactive selection of layers to download.                                                                                    |
 | Export Formats                               | GeoJSON (`.geojson`), KML (`.kml`), GPX (`.gpx`), CSV (`.csv`), JSON (`.json`), Text (`.txt`)                                             |
 | Configuration Options                        | Configurable options for file handling, output naming, and request timeouts.                                                              |
+| Automated Layer Processing                   | Process layers from a CSV file, enabling automated workflows.                                                                             |
+| Versioned Output                             | Append timestamps to output filenames for versioning.                                                                                     |
 
 ### To-Do
 
-- [ ] Versioning
 - [ ] ArcGIS API Support
 
 ## Installation
@@ -62,15 +63,15 @@ Ensure you have Go installed (version 1.24 or later recommended).
 ```bash
 git clone https://github.com/Sudo-Ivan/arcgis-utils-go.git
 cd arcgis-utils-go
-go build -o arcgis-utils main.go
+make build
 ```
 
-This will create an executable named `arcgis-utils` (or `arcgis-utils.exe` on Windows) in the current directory.
+This will create an executable named `arcgis-utils` (or `arcgis-utils.exe` on Windows) in the `bin/` directory.
 
 ## Usage
 
 ```bash
-arcgis-utils -url <ARCGIS_URL> [OPTIONS]
+./bin/arcgis-utils -url <ARCGIS_URL> [OPTIONS]
 ```
 
 Docker Build:
@@ -83,6 +84,7 @@ docker run --rm -v ./results:/results -u 1000:1000 arcgis-utils -url <ARCGIS_URL
 **Required:**
 
 *   `-url <ARCGIS_URL>`: The URL of the ArcGIS resource to process. This can be a Feature Layer, Feature Server, Map Server, or ArcGIS Online Item page URL.
+*   `-layers-csv <path>`: Path to a CSV file containing a list of ArcGIS layer URLs to process. The CSV must have a header row with a column named "URL". When this flag is used, `-url` is ignored and `--select-all` is implicitly enabled for layers from the CSV.
 
 **Options:**
 
@@ -95,6 +97,7 @@ docker run --rm -v ./results:/results -u 1000:1000 arcgis-utils -url <ARCGIS_URL
 *   `-prefix <prefix>`: Add a specified prefix to all output filenames.
 *   `-timeout <seconds>`: Set the timeout in seconds for HTTP requests (default: 30).
 *   `-exclude-symbols`: Exclude symbol information (images, styling) from the output. Useful for reducing file size or when symbols aren't needed.
+*   `-versioned-output`: Append a timestamp (YYYYMMDD_HHMMSS) to output filenames for versioning.
 
 ## Examples
 
@@ -133,6 +136,12 @@ arcgis-utils -url https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/servi
 
 ```bash
 arcgis-utils -url https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/World_Time_Zones/FeatureServer/0 -format csv -timeout 60
+```
+
+**7. Download layers from a CSV file with versioned output:**
+
+```bash
+arcgis-utils -layers-csv layers.csv -output ./csv_output -versioned-output
 ```
 ## License
 
