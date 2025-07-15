@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -49,6 +50,100 @@ func TestNormalizeArcGISURL(t *testing.T) {
 				t.Errorf("NormalizeArcGISURL(%q): expected %q, got %q", tt.input, tt.expected, actual)
 			}
 		})
+	}
+}
+
+func TestMainWithLayersCSV(t *testing.T) {
+	// Create a mock server for the URLs in the CSV
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Mock layer metadata response
+		if r.URL.Path == "/0" && r.URL.Query().Get("f") == "json" {
+			layer := arcgis.Layer{
+				Name: "CSV Test Layer 0",
+				Type: "Feature Layer",
+			}
+			json.NewEncoder(w).Encode(layer)
+			return
+		}
+		if r.URL.Path == "/1" && r.URL.Query().Get("f") == "json" {
+			layer := arcgis.Layer{
+				Name: "CSV Test Layer 1",
+				Type: "Feature Layer",
+			}
+			json.NewEncoder(w).Encode(layer)
+			return
+		}
+		// Mock features response
+		if strings.HasSuffix(r.URL.Path, "/query") {
+			features := arcgis.FeatureResponse{
+				Features: []arcgis.Feature{
+					{
+						Attributes: map[string]interface{}{
+							"OBJECTID": 1,
+							"Name":     "Test Feature",
+						},
+						Geometry: map[string]interface{}{
+							"x": -122.0,
+							"y": 37.0,
+						},
+					},
+				},
+			}
+			json.NewEncoder(w).Encode(features)
+			return
+		}
+
+		http.Error(w, "Not found", http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	// Create a temporary CSV file
+	csvContent := fmt.Sprintf("URL\n%s/0\n%s/1", server.URL, server.URL)
+	csvFile, err := os.CreateTemp("", "layers-*.csv")
+	if err != nil {
+		t.Fatalf("Failed to create temp CSV file: %v", err)
+	}
+	defer os.Remove(csvFile.Name()) // Clean up the temporary file
+
+	if _, err := csvFile.WriteString(csvContent); err != nil {
+		t.Fatalf("Failed to write to temp CSV file: %v", err)
+	}
+	csvFile.Close()
+
+	// Save original os.Args and restore after test
+	oldArgs := os.Args
+	defer func() { os.Args = oldArgs }()
+
+	// Set up os.Args to simulate CLI input
+	os.Args = []string{"arcgis-utils", "-layers-csv", csvFile.Name(), "-output", t.TempDir(), "-select-all"}
+
+	// Redirect stdout to capture output
+	oldStdout := os.Stdout
+	_, w, _ := os.Pipe() // Use _ for r as it's not used
+	os.Stdout = w
+
+	// Run main function
+	main()
+
+	w.Close()
+	os.Stdout = oldStdout // Restore stdout
+	// capturedOutput, _ := io.ReadAll(r) // This line is commented out, so r is not used.
+	// fmt.Printf("Captured output:\n%s\n", string(capturedOutput))
+
+	// Verify that layersToProcess contains the expected layers
+	if len(layersToProcess) != 2 {
+		t.Errorf("Expected 2 layers to be processed, got %d", len(layersToProcess))
+	}
+
+	expectedKeys := map[string]bool{
+		fmt.Sprintf("%s/0", server.URL): true,
+		fmt.Sprintf("%s/1", server.URL): true,
+	}
+
+	for key := range layersToProcess {
+		if !expectedKeys[key] {
+			t.Errorf("Unexpected layer processed: %s", key)
+		}
 	}
 }
 
