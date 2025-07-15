@@ -16,7 +16,7 @@ import (
 func TestConvertGeoJSONToKMZ(t *testing.T) {
 	// Create test data with base64 image
 	testImageData := "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
-	
+
 	geoJSON := &convert.GeoJSON{
 		Type: "FeatureCollection",
 		CRS: convert.CRS{
@@ -76,7 +76,7 @@ func TestConvertGeoJSONToKMZ(t *testing.T) {
 
 	// Check that we have the expected files
 	expectedFiles := map[string]bool{
-		"doc.kml":           false,
+		"doc.kml":             false,
 		"images/symbol_1.png": false,
 	}
 
@@ -208,7 +208,7 @@ func TestGetImageExtension(t *testing.T) {
 		{"image/jpeg", ".jpg"},
 		{"image/gif", ".gif"},
 		{"image/svg+xml", ".svg"},
-		{"", ".png"}, // default
+		{"", ".png"},        // default
 		{"unknown", ".png"}, // default
 	}
 
@@ -218,4 +218,4 @@ func TestGetImageExtension(t *testing.T) {
 			t.Errorf("getImageExtension(%s) = %s, expected %s", test.contentType, result, test.expected)
 		}
 	}
-} 
+}

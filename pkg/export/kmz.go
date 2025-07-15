@@ -31,8 +31,8 @@ import (
 func ConvertGeoJSONToKMZ(geoJSON *convert.GeoJSON, layerName string) ([]byte, error) {
 	var styles strings.Builder
 	var placemarks strings.Builder
-	styleMap := make(map[string]string)     // Map to track unique styles
-	imageFiles := make(map[string][]byte)   // Map to store image files for KMZ
+	styleMap := make(map[string]string)   // Map to track unique styles
+	imageFiles := make(map[string][]byte) // Map to store image files for KMZ
 	imageCounter := 0
 
 	// First pass: collect all unique styles and extract images
@@ -45,16 +45,16 @@ func ConvertGeoJSONToKMZ(geoJSON *convert.GeoJSON, layerName string) ([]byte, er
 				if feature.Symbol.ImageData != "" {
 					imageCounter++
 					imageName := fmt.Sprintf("images/symbol_%d%s", imageCounter, getImageExtension(feature.Symbol.ContentType))
-					
+
 					// Decode base64 image data
 					imageData, err := base64.StdEncoding.DecodeString(feature.Symbol.ImageData)
 					if err != nil {
 						return nil, fmt.Errorf("failed to decode base64 image data: %v", err)
 					}
-					
+
 					// Store image data for KMZ archive
 					imageFiles[imageName] = imageData
-					
+
 					// Update symbol URL to reference the file in the KMZ
 					feature.Symbol.URL = imageName
 				}
@@ -79,16 +79,16 @@ func ConvertGeoJSONToKMZ(geoJSON *convert.GeoJSON, layerName string) ([]byte, er
 					if symbol.ImageData != "" {
 						imageCounter++
 						imageName := fmt.Sprintf("images/symbol_%d%s", imageCounter, getImageExtension(symbol.ContentType))
-						
+
 						// Decode base64 image data
 						imageData, err := base64.StdEncoding.DecodeString(symbol.ImageData)
 						if err != nil {
 							return nil, fmt.Errorf("failed to decode base64 image data: %v", err)
 						}
-						
+
 						// Store image data for KMZ archive
 						imageFiles[imageName] = imageData
-						
+
 						// Update symbol URL to reference the file in the KMZ
 						symbol.URL = imageName
 					}
@@ -128,16 +128,16 @@ func ConvertGeoJSONToKMZ(geoJSON *convert.GeoJSON, layerName string) ([]byte, er
 																			if symbol.ImageData != "" {
 																				imageCounter++
 																				imageName := fmt.Sprintf("images/symbol_%d%s", imageCounter, getImageExtension(symbol.ContentType))
-																				
+
 																				// Decode base64 image data
 																				imageData, err := base64.StdEncoding.DecodeString(symbol.ImageData)
 																				if err != nil {
 																					return nil, fmt.Errorf("failed to decode base64 image data: %v", err)
 																				}
-																				
+
 																				// Store image data for KMZ archive
 																				imageFiles[imageName] = imageData
-																				
+
 																				// Update symbol URL to reference the file in the KMZ
 																				symbol.URL = imageName
 																			}
@@ -361,4 +361,4 @@ func getImageExtension(contentType string) string {
 	default:
 		return ".png" // Default to PNG
 	}
-} 
+}
