@@ -44,7 +44,7 @@ jobs:
         if [ "$GOOS" = "windows" ]; then
           output_name+=".exe"
         fi
-        go build -v -ldflags="-s -w" -o "${output_name}" .
+        CGO_ENABLED=0 go build -v -ldflags="-s -w" -o "${output_name}" ./cmd/arcgis-utils
         echo "Built: ${output_name}"
 
     - name: Calculate SHA256 Checksum
