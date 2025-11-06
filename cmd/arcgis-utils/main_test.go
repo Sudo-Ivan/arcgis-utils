@@ -282,9 +282,11 @@ func TestConvertFeatures(t *testing.T) {
 	geojson, err := convert.ToGeoJSON(convertedFeatures)
 	if err != nil {
 		t.Errorf("ToGeoJSON failed: %v", err)
+		return
 	}
 	if geojson == nil {
 		t.Error("ToGeoJSON returned nil")
+		return
 	}
 	if len(geojson.Features) != len(features) {
 		t.Errorf("Expected %d GeoJSON features, got %d", len(features), len(geojson.Features))

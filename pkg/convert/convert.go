@@ -264,41 +264,6 @@ func FeaturesToText(features []Feature, layerName string) (string, error) {
 	return output.String(), nil
 }
 
-// Helper functions
-
-// getString extracts a string value from a map.
-// Returns empty string if key doesn't exist or value is not a string.
-func getString(m map[string]interface{}, key string) string {
-	if val, ok := m[key]; ok {
-		if str, ok := val.(string); ok {
-			return str
-		}
-	}
-	return ""
-}
-
-// getInt extracts an integer value from a map.
-// Returns 0 if key doesn't exist or value is not a number.
-func getInt(m map[string]interface{}, key string) int {
-	if val, ok := m[key]; ok {
-		if num, ok := val.(float64); ok {
-			return int(num)
-		}
-	}
-	return 0
-}
-
-// getFloat extracts a float64 value from a map.
-// Returns 0 if key doesn't exist or value is not a number.
-func getFloat(m map[string]interface{}, key string) float64 {
-	if val, ok := m[key]; ok {
-		if num, ok := val.(float64); ok {
-			return num
-		}
-	}
-	return 0
-}
-
 // geometryToWKT converts a geometry interface to a WKT string.
 // Supports:
 //   - Point geometries (x,y coordinates)

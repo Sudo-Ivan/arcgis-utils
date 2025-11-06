@@ -163,7 +163,7 @@ func IsValidHTTPURL(rawURL string) bool {
 // Returns:
 //   - error: Any error that occurred during the fetch or decode operation
 func (c *Client) FetchAndDecode(urlStr string, target interface{}) error {
-	req, err := http.NewRequest("GET", urlStr, nil)
+	req, err := http.NewRequest("GET", urlStr, http.NoBody)
 	if err != nil {
 		return fmt.Errorf("failed to create request for %s: %v", urlStr, err)
 	}
@@ -209,7 +209,7 @@ func (c *Client) FetchFeatures(baseURL, layerID string) ([]Feature, error) {
 
 	fmt.Printf("    Fetching features: %s\n", u.String())
 
-	req, err := http.NewRequest("GET", u.String(), nil)
+	req, err := http.NewRequest("GET", u.String(), http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create feature query request: %v", err)
 	}

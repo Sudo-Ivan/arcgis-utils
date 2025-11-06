@@ -870,7 +870,7 @@ func processSelectedLayer(client *arcgis.Client, layerInfo arcgis.AvailableLayer
 	}
 
 	safeFilenameBase := strings.ReplaceAll(actualLayerName, " ", "_")
-	safeFilenameBase = regexp.MustCompile(`[<>:"/\|?* - ]`).ReplaceAllString(safeFilenameBase, "")
+	safeFilenameBase = regexp.MustCompile(`[<>:"/\\|?*\s-]`).ReplaceAllString(safeFilenameBase, "")
 	if safeFilenameBase == "" {
 		safeFilenameBase = fmt.Sprintf(LayerNameFormat, layerInfo.ID)
 	}
