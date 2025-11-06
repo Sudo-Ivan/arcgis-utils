@@ -14,7 +14,7 @@ import (
 	"github.com/Sudo-Ivan/arcgis-utils/pkg/arcgis"
 )
 
-// ConvertToGeoJSON converts a slice of Feature structs to a GeoJSON FeatureCollection.
+// ToGeoJSON converts a slice of Feature structs to a GeoJSON FeatureCollection.
 // It handles:
 //   - Point geometries (x,y coordinates)
 //   - LineString geometries (paths)
@@ -28,7 +28,7 @@ import (
 // Returns:
 //   - *GeoJSON: Pointer to the converted GeoJSON FeatureCollection
 //   - error: Any error that occurred during conversion
-func ConvertToGeoJSON(features []Feature) (*GeoJSON, error) {
+func ToGeoJSON(features []Feature) (*GeoJSON, error) {
 	geoJSON := GeoJSON{
 		Type: "FeatureCollection",
 		CRS: CRS{
@@ -135,9 +135,6 @@ func ConvertToGeoJSON(features []Feature) (*GeoJSON, error) {
 						Angle:       arcSymbol.Angle,
 					}
 					geoJSONFeature.Symbol = symbol
-				} else {
-					// Optional: Add logging or warning if casting fails or symbol is nil
-					// fmt.Printf("Warning: Could not cast symbol attribute or symbol was nil for feature.\n")
 				}
 			}
 
@@ -148,7 +145,7 @@ func ConvertToGeoJSON(features []Feature) (*GeoJSON, error) {
 	return &geoJSON, nil
 }
 
-// ConvertFeaturesToCSV converts a slice of Feature structs to a CSV string.
+// FeaturesToCSV converts a slice of Feature structs to a CSV string.
 // The CSV includes:
 //   - All unique attribute fields as columns
 //   - WKT geometry representation in the last column
@@ -160,7 +157,7 @@ func ConvertToGeoJSON(features []Feature) (*GeoJSON, error) {
 // Returns:
 //   - string: CSV formatted string
 //   - error: Any error that occurred during conversion
-func ConvertFeaturesToCSV(features []Feature) (string, error) {
+func FeaturesToCSV(features []Feature) (string, error) {
 	if len(features) == 0 {
 		return "", nil
 	}
@@ -215,7 +212,7 @@ func ConvertFeaturesToCSV(features []Feature) (string, error) {
 	return buf.String(), nil
 }
 
-// ConvertFeaturesToText converts a slice of Feature structs to a formatted text string.
+// FeaturesToText converts a slice of Feature structs to a formatted text string.
 // The output includes:
 //   - Layer name and feature count
 //   - Feature attributes in sorted order
@@ -228,7 +225,7 @@ func ConvertFeaturesToCSV(features []Feature) (string, error) {
 // Returns:
 //   - string: Formatted text output
 //   - error: Any error that occurred during conversion
-func ConvertFeaturesToText(features []Feature, layerName string) (string, error) {
+func FeaturesToText(features []Feature, layerName string) (string, error) {
 	if len(features) == 0 {
 		return "", fmt.Errorf("no features to convert to text")
 	}

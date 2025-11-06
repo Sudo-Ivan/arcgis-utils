@@ -85,13 +85,13 @@ var testFeatures = []Feature{
 
 func TestConvertToGeoJSON(t *testing.T) {
 	// Test with symbols included
-	geoJSON, err := ConvertToGeoJSON(testFeatures)
+	geoJSON, err := ToGeoJSON(testFeatures)
 	if err != nil {
-		t.Fatalf("ConvertToGeoJSON failed: %v", err)
+		t.Fatalf("ToGeoJSON failed: %v", err)
 	}
 
 	if geoJSON == nil {
-		t.Fatal("ConvertToGeoJSON returned nil GeoJSON object")
+		t.Fatal("ToGeoJSON returned nil GeoJSON object")
 	}
 
 	if geoJSON.Type != "FeatureCollection" {
@@ -158,9 +158,9 @@ func TestConvertToGeoJSON(t *testing.T) {
 		}
 	}
 
-	geoJSONNoSymbols, err := ConvertToGeoJSON(featuresWithoutSymbols)
+	geoJSONNoSymbols, err := ToGeoJSON(featuresWithoutSymbols)
 	if err != nil {
-		t.Fatalf("ConvertToGeoJSON failed with excluded symbols: %v", err)
+		t.Fatalf("ToGeoJSON failed with excluded symbols: %v", err)
 	}
 
 	if len(geoJSONNoSymbols.Features) > 0 {
@@ -173,9 +173,9 @@ func TestConvertToGeoJSON(t *testing.T) {
 
 func TestConvertFeaturesToCSV(t *testing.T) {
 	// Test with symbols included
-	csvString, err := ConvertFeaturesToCSV(testFeatures)
+	csvString, err := FeaturesToCSV(testFeatures)
 	if err != nil {
-		t.Fatalf("ConvertFeaturesToCSV failed: %v", err)
+		t.Fatalf("FeaturesToCSV failed: %v", err)
 	}
 
 	// Basic structural checks - more robust parsing could be added
@@ -199,9 +199,9 @@ func TestConvertFeaturesToCSV(t *testing.T) {
 		}
 	}
 
-	csvStringNoSymbols, err := ConvertFeaturesToCSV(featuresWithoutSymbols)
+	csvStringNoSymbols, err := FeaturesToCSV(featuresWithoutSymbols)
 	if err != nil {
-		t.Fatalf("ConvertFeaturesToCSV failed with excluded symbols: %v", err)
+		t.Fatalf("FeaturesToCSV failed with excluded symbols: %v", err)
 	}
 
 	expectedHeaderNoSymbols := "Area,Name,OBJECTID,Status,Value,WKT_Geometry"
@@ -212,9 +212,9 @@ func TestConvertFeaturesToCSV(t *testing.T) {
 
 func TestConvertFeaturesToText(t *testing.T) {
 	layerName := "Test Layer"
-	textString, err := ConvertFeaturesToText(testFeatures, layerName)
+	textString, err := FeaturesToText(testFeatures, layerName)
 	if err != nil {
-		t.Fatalf("ConvertFeaturesToText failed: %v", err)
+		t.Fatalf("FeaturesToText failed: %v", err)
 	}
 
 	// Basic structural checks

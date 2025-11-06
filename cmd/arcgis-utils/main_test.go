@@ -170,7 +170,16 @@ func TestProcessSelectedLayer(t *testing.T) {
 			}
 
 			// Test processing the layer without saving symbols
-			err := processSelectedLayer(client, layerInfo, format, tempDir, true, false, "test_", false, false)
+			config := layerProcessConfig{
+				format:         format,
+				outputDir:      tempDir,
+				overwrite:      true,
+				skipExisting:   false,
+				prefix:         "test_",
+				excludeSymbols: false,
+				saveSymbols:    false,
+			}
+			err := processSelectedLayer(client, layerInfo, config)
 			if err != nil {
 				t.Errorf("processSelectedLayer failed for format %s: %v", format, err)
 			}
@@ -182,7 +191,8 @@ func TestProcessSelectedLayer(t *testing.T) {
 			}
 
 			// Test processing the layer with saving symbols
-			err = processSelectedLayer(client, layerInfo, format, tempDir, true, false, "test_", false, true)
+			config.saveSymbols = true
+			err = processSelectedLayer(client, layerInfo, config)
 			if err != nil {
 				t.Errorf("processSelectedLayer failed for format %s with symbol saving: %v", format, err)
 			}
@@ -269,12 +279,12 @@ func TestConvertFeatures(t *testing.T) {
 	}
 
 	// Test conversion to GeoJSON
-	geojson, err := convert.ConvertToGeoJSON(convertedFeatures)
+	geojson, err := convert.ToGeoJSON(convertedFeatures)
 	if err != nil {
-		t.Errorf("ConvertToGeoJSON failed: %v", err)
+		t.Errorf("ToGeoJSON failed: %v", err)
 	}
 	if geojson == nil {
-		t.Error("ConvertToGeoJSON returned nil")
+		t.Error("ToGeoJSON returned nil")
 	}
 	if len(geojson.Features) != len(features) {
 		t.Errorf("Expected %d GeoJSON features, got %d", len(features), len(geojson.Features))
@@ -299,21 +309,21 @@ func TestConvertFeatures(t *testing.T) {
 	}
 
 	// Test conversion to CSV
-	csv, err := convert.ConvertFeaturesToCSV(convertedFeatures)
+	csv, err := convert.FeaturesToCSV(convertedFeatures)
 	if err != nil {
-		t.Errorf("ConvertFeaturesToCSV failed: %v", err)
+		t.Errorf("FeaturesToCSV failed: %v", err)
 	}
 	if csv == "" {
-		t.Error("ConvertFeaturesToCSV returned empty string")
+		t.Error("FeaturesToCSV returned empty string")
 	}
 
 	// Test conversion to text
-	text, err := convert.ConvertFeaturesToText(convertedFeatures, "Test Layer")
+	text, err := convert.FeaturesToText(convertedFeatures, "Test Layer")
 	if err != nil {
-		t.Errorf("ConvertFeaturesToText failed: %v", err)
+		t.Errorf("FeaturesToText failed: %v", err)
 	}
 	if text == "" {
-		t.Error("ConvertFeaturesToText returned empty string")
+		t.Error("FeaturesToText returned empty string")
 	}
 }
 

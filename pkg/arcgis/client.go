@@ -92,7 +92,7 @@ func NormalizeArcGISURL(rawURL string) string {
 
 	if isArcGISService {
 		// Normalize path casing only for service URLs
-		pathParts := strings.Split(strings.Trim(u.Path, "/"), "/")
+		pathParts := strings.Split(strings.Trim(u.Path, PathSeparator), PathSeparator)
 		for i, part := range pathParts {
 			lowerPart := strings.ToLower(part)
 			if lowerPart == "arcgis" {
@@ -102,35 +102,32 @@ func NormalizeArcGISURL(rawURL string) string {
 			} else if lowerPart == "services" {
 				pathParts[i] = "services"
 			} else if lowerPart == "featureserver" {
-				pathParts[i] = "FeatureServer"
+				pathParts[i] = ServiceFeatureServer
 			} else if lowerPart == "mapserver" {
-				pathParts[i] = "MapServer"
+				pathParts[i] = ServiceMapServer
 			}
 		}
 		// Reconstruct path, respecting if original had leading slash
-		if strings.HasPrefix(u.Path, "/") {
-			u.Path = "/" + strings.Join(pathParts, "/")
+		if strings.HasPrefix(u.Path, PathSeparator) {
+			u.Path = PathSeparator + strings.Join(pathParts, PathSeparator)
 		} else {
-			u.Path = strings.Join(pathParts, "/")
+			u.Path = strings.Join(pathParts, PathSeparator)
 		}
 
 		// Handle trailing slashes more carefully
-		lowerPathEnd := ""
-		if len(pathParts) > 0 {
+		lowerPathEnd := EmptyString
+		if len(pathParts) > IndexFirst {
 			lowerPathEnd = strings.ToLower(pathParts[len(pathParts)-1])
 		}
 
-		// Check if it's a base service URL
 		isBaseServiceURL := lowerPathEnd == "mapserver" || lowerPathEnd == "featureserver"
 
 		if isBaseServiceURL {
-			// Ensure base service URLs end with a slash
-			if !strings.HasSuffix(u.Path, "/") {
-				u.Path += "/"
+			if !strings.HasSuffix(u.Path, PathSeparator) {
+				u.Path += PathSeparator
 			}
 		} else {
-			// Remove trailing slash if it's not a base service URL
-			if len(u.Path) > 1 && strings.HasSuffix(u.Path, "/") {
+			if len(u.Path) > 1 && strings.HasSuffix(u.Path, PathSeparator) {
 				u.Path = u.Path[:len(u.Path)-1]
 			}
 		}

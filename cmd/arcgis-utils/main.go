@@ -259,6 +259,17 @@ type AvailableLayerInfo struct {
 // layersToProcess stores the layers selected for processing.
 var layersToProcess = make(map[string]arcgis.AvailableLayerInfo)
 
+// layerProcessConfig holds configuration for processing a layer.
+type layerProcessConfig struct {
+	format         string
+	outputDir      string
+	overwrite      bool
+	skipExisting   bool
+	prefix         string
+	excludeSymbols bool
+	saveSymbols    bool
+}
+
 func main() {
 	urlPtr := flag.String("url", "", "ArcGIS Feature Layer, Feature Server, Map Server, or ArcGIS Online Item URL")
 	formatPtr := flag.String("format", "geojson", "Output format (geojson, kml, gpx, csv, json, txt)")
@@ -367,7 +378,16 @@ func main() {
 		go func() {
 			defer wg.Done()
 			printInfo(fmt.Sprintf("Processing Layer: %s (ID: %s)", layerInfoCopy.Name, layerInfoCopy.ID))
-			err := processSelectedLayer(client, layerInfoCopy, formatCopy, outputDirCopy, overwriteCopy, skipExistingCopy, prefixCopy, excludeSymbolsCopy, saveSymbolsCopy)
+			config := layerProcessConfig{
+				format:         formatCopy,
+				outputDir:      outputDirCopy,
+				overwrite:      overwriteCopy,
+				skipExisting:   skipExistingCopy,
+				prefix:         prefixCopy,
+				excludeSymbols: excludeSymbolsCopy,
+				saveSymbols:    saveSymbolsCopy,
+			}
+			err := processSelectedLayer(client, layerInfoCopy, config)
 			if err != nil {
 				if err.Error() == "skipped existing file" {
 					printWarning(fmt.Sprintf("  Skipped layer %s (output file exists).", layerInfoCopy.Name))
@@ -494,20 +514,17 @@ func processOperationalLayer(client *arcgis.Client, opLayer arcgis.OperationalLa
 		layerIDStr := ""
 		parts := strings.Split(serviceURL, "/")
 		lastPart := parts[len(parts)-1]
-		if _, err := strconv.Atoi(lastPart); err == nil {
-			layerIDStr = lastPart
-			serviceURL = strings.Join(parts[:len(parts)-1], "/")
-		} else {
+		if _, err := strconv.Atoi(lastPart); err != nil {
 			fmt.Printf("    Service URL found: %s for layer %s. Fetching service layers...\n", serviceURL, opLayer.Title)
 			var subLayers []arcgis.AvailableLayerInfo
-			var err error
+			var fetchErr error
 			if strings.Contains(strings.ToLower(serviceURL), "/featureserver") {
-				subLayers, err = client.FetchServiceLayers(serviceURL, "FeatureServer")
+				subLayers, fetchErr = client.FetchServiceLayers(serviceURL, "FeatureServer")
 			} else {
-				subLayers, err = client.FetchServiceLayers(serviceURL, "MapServer")
+				subLayers, fetchErr = client.FetchServiceLayers(serviceURL, "MapServer")
 			}
-			if err != nil {
-				fmt.Printf("      Warning: Failed to fetch layers for service %s: %v\n", serviceURL, err)
+			if fetchErr != nil {
+				fmt.Printf("      Warning: Failed to fetch layers for service %s: %v\n", serviceURL, fetchErr)
 			} else {
 				for _, sl := range subLayers {
 					sl.ParentPath = currentPath
@@ -516,6 +533,8 @@ func processOperationalLayer(client *arcgis.Client, opLayer arcgis.OperationalLa
 			}
 			return
 		}
+		layerIDStr = lastPart
+		serviceURL = strings.Join(parts[:len(parts)-1], "/")
 
 		if layerIDStr != "" {
 			fmt.Printf("    Adding Layer Reference: %s (ID: %s) from Service: %s\n", strings.Join(currentPath, " > "), layerIDStr, serviceURL)
@@ -596,18 +615,17 @@ func handleFeatureServerURL(client *arcgis.Client, featureServerURL string, sele
 			IsFeatureLayer: true,
 		}
 		return nil
-	} else {
-		layers, err := client.FetchServiceLayers(featureServerURL, "FeatureServer")
-		if err != nil {
-			return err
-		}
-		if len(layers) == 0 {
-			fmt.Println("  No processable Feature Layers found in this Feature Service.")
-			return nil
-		}
-		fmt.Printf("  Found %d potential Feature Layers in Feature Service.\n", len(layers))
-		return selectAndAddLayers(layers, selectAll)
 	}
+	layers, err := client.FetchServiceLayers(featureServerURL, "FeatureServer")
+	if err != nil {
+		return err
+	}
+	if len(layers) == 0 {
+		fmt.Println("  No processable Feature Layers found in this Feature Service.")
+		return nil
+	}
+	fmt.Printf("  Found %d potential Feature Layers in Feature Service.\n", len(layers))
+	return selectAndAddLayers(layers, selectAll)
 }
 
 // selectAndAddLayers prompts the user to select layers from a list and adds them to the processing queue.
@@ -675,7 +693,7 @@ func selectAndAddLayers(availableLayers []arcgis.AvailableLayerInfo, selectAll b
 }
 
 // processSelectedLayer processes a single selected layer and exports it to the specified format.
-func processSelectedLayer(client *arcgis.Client, layerInfo arcgis.AvailableLayerInfo, format, outputDir string, overwrite, skipExisting bool, prefix string, excludeSymbols, saveSymbols bool) error {
+func processSelectedLayer(client *arcgis.Client, layerInfo arcgis.AvailableLayerInfo, config layerProcessConfig) error {
 	metadataURL := fmt.Sprintf("%s/%s?f=json", layerInfo.ServiceURL, layerInfo.ID)
 	var layerMetadata arcgis.Layer
 	err := client.FetchAndDecode(metadataURL, &layerMetadata)
@@ -704,28 +722,24 @@ func processSelectedLayer(client *arcgis.Client, layerInfo arcgis.AvailableLayer
 
 	// Create symbols directory if needed
 	symbolsDir := ""
-	if saveSymbols {
-		symbolsDir = filepath.Join(outputDir, "symbols", actualLayerName)
-		if err := os.MkdirAll(symbolsDir, 0750); err != nil {
+	if config.saveSymbols {
+		symbolsDir = filepath.Join(config.outputDir, "symbols", actualLayerName)
+		if err := os.MkdirAll(symbolsDir, DirPerm); err != nil {
 			return fmt.Errorf("failed to create symbols directory %s: %v", symbolsDir, err)
 		}
 	}
 
-	// Add symbol information to features if available in layer metadata and not excluded
-	if !excludeSymbols && layerMetadata.DrawingInfo != nil && layerMetadata.DrawingInfo.Renderer != nil {
+	if !config.excludeSymbols && layerMetadata.DrawingInfo != nil && layerMetadata.DrawingInfo.Renderer != nil {
 		renderer := layerMetadata.DrawingInfo.Renderer
 
-		// Determine relative path for symbols if saving
 		relativeSymbolsDir := ""
-		if saveSymbols {
-			// Use only the layer name subdirectory for the relative path in KML
+		if config.saveSymbols {
 			relativeSymbolsDir = filepath.Join("symbols", actualLayerName)
 		}
 
-		// Handle default symbol
 		if renderer.DefaultSymbol != nil {
-			defaultSymbolCopy := *renderer.DefaultSymbol // Make a copy to modify URL if needed
-			if saveSymbols {
+			defaultSymbolCopy := *renderer.DefaultSymbol
+			if config.saveSymbols {
 				symbolFilenameBase := "default"
 				// Save default symbol
 				if err := saveSymbol(&defaultSymbolCopy, symbolsDir, symbolFilenameBase); err != nil {
@@ -740,7 +754,7 @@ func processSelectedLayer(client *arcgis.Client, layerInfo arcgis.AvailableLayer
 				if features[i].Attributes == nil {
 					features[i].Attributes = make(map[string]interface{})
 				}
-				features[i].Attributes["symbol"] = &defaultSymbolCopy // Use the (potentially modified) copy
+				features[i].Attributes[KeySymbol] = &defaultSymbolCopy
 			}
 		}
 
@@ -751,8 +765,8 @@ func processSelectedLayer(client *arcgis.Client, layerInfo arcgis.AvailableLayer
 			for _, group := range renderer.UniqueValueGroups {
 				for _, class := range group.Classes {
 					if class.Symbol != nil {
-						classSymbolCopy := *class.Symbol // Make a copy
-						if saveSymbols {
+						classSymbolCopy := *class.Symbol
+						if config.saveSymbols {
 							// Sanitize label for filename
 							safLabel := regexp.MustCompile(`[<>:"/\|?*\s]`).ReplaceAllString(class.Label, "_")
 							if safLabel == "" {
@@ -784,7 +798,7 @@ func processSelectedLayer(client *arcgis.Client, layerInfo arcgis.AvailableLayer
 					features[i].Attributes = make(map[string]interface{})
 				}
 				// Check if the feature already has a symbol (e.g., default)
-				if _, hasSymbol := features[i].Attributes["symbol"]; hasSymbol {
+				if _, hasSymbol := features[i].Attributes[KeySymbol]; hasSymbol {
 					continue // Skip if default symbol was already assigned
 				}
 				// Get the attribute value
@@ -792,7 +806,7 @@ func processSelectedLayer(client *arcgis.Client, layerInfo arcgis.AvailableLayer
 					fieldValueStr := fmt.Sprintf("%v", fieldValue)
 					// Look up the symbol in the map
 					if mappedSymbol, found := symbolMap[fieldValueStr]; found {
-						features[i].Attributes["symbol"] = mappedSymbol
+						features[i].Attributes[KeySymbol] = mappedSymbol
 					}
 				}
 			}
@@ -801,9 +815,9 @@ func processSelectedLayer(client *arcgis.Client, layerInfo arcgis.AvailableLayer
 
 	var data string
 	var fileExt string
-	switch strings.ToLower(format) {
-	case "geojson":
-		geojsonData, err := convert.ConvertToGeoJSON(convertFeatures(features))
+	switch strings.ToLower(config.format) {
+	case FormatGeoJSON:
+		geojsonData, err := convert.ToGeoJSON(convertFeatures(features))
 		if err != nil {
 			return fmt.Errorf("failed to convert features to GeoJSON objects: %v", err)
 		}
@@ -813,7 +827,7 @@ func processSelectedLayer(client *arcgis.Client, layerInfo arcgis.AvailableLayer
 		}
 		fileExt = "geojson"
 	case "kml":
-		geojsonData, err := convert.ConvertToGeoJSON(convertFeatures(features))
+		geojsonData, err := convert.ToGeoJSON(convertFeatures(features))
 		if err != nil {
 			return fmt.Errorf("failed to convert features to GeoJSON for KML: %v", err)
 		}
@@ -823,7 +837,7 @@ func processSelectedLayer(client *arcgis.Client, layerInfo arcgis.AvailableLayer
 		}
 		fileExt = "kml"
 	case "gpx":
-		geojsonData, err := convert.ConvertToGeoJSON(convertFeatures(features))
+		geojsonData, err := convert.ToGeoJSON(convertFeatures(features))
 		if err != nil {
 			return fmt.Errorf("failed to convert features to GeoJSON for GPX: %v", err)
 		}
@@ -833,45 +847,45 @@ func processSelectedLayer(client *arcgis.Client, layerInfo arcgis.AvailableLayer
 		}
 		fileExt = "gpx"
 	case "json":
-		jsonDataBytes, err := json.MarshalIndent(convertFeatures(features), "", "  ")
+		jsonDataBytes, err := json.MarshalIndent(convertFeatures(features), "", JSONIndent)
 		if err != nil {
 			return fmt.Errorf("failed to marshal features to JSON: %v", err)
 		}
 		data = string(jsonDataBytes)
 		fileExt = "json"
 	case "csv":
-		data, err = convert.ConvertFeaturesToCSV(convertFeatures(features))
+		data, err = convert.FeaturesToCSV(convertFeatures(features))
 		if err != nil {
 			return fmt.Errorf("failed to convert features to CSV: %v", err)
 		}
 		fileExt = "csv"
 	case "txt":
-		data, err = convert.ConvertFeaturesToText(convertFeatures(features), actualLayerName)
+		data, err = convert.FeaturesToText(convertFeatures(features), actualLayerName)
 		if err != nil {
 			return fmt.Errorf("failed to convert features to text: %v", err)
 		}
 		fileExt = "txt"
 	default:
-		return fmt.Errorf("unsupported format: %s", format)
+		return fmt.Errorf("unsupported format: %s", config.format)
 	}
 
 	safeFilenameBase := strings.ReplaceAll(actualLayerName, " ", "_")
 	safeFilenameBase = regexp.MustCompile(`[<>:"/\|?* - ]`).ReplaceAllString(safeFilenameBase, "")
 	if safeFilenameBase == "" {
-		safeFilenameBase = fmt.Sprintf("Layer_%s", layerInfo.ID)
+		safeFilenameBase = fmt.Sprintf(LayerNameFormat, layerInfo.ID)
 	}
-	if prefix != "" {
-		safeFilenameBase = prefix + safeFilenameBase
+	if config.prefix != "" {
+		safeFilenameBase = config.prefix + safeFilenameBase
 	}
 
 	filename := fmt.Sprintf("%s.%s", safeFilenameBase, fileExt)
-	outputPath := filepath.Join(outputDir, filename)
+	outputPath := filepath.Join(config.outputDir, filename)
 
 	if _, err := os.Stat(outputPath); err == nil {
-		if skipExisting {
+		if config.skipExisting {
 			return fmt.Errorf("skipped existing file")
 		}
-		if !overwrite {
+		if !config.overwrite {
 			return fmt.Errorf("output file %s already exists. Use --overwrite or --skip-existing", outputPath)
 		}
 		printWarning(fmt.Sprintf("  Overwriting existing file: %s", outputPath))
@@ -879,11 +893,11 @@ func processSelectedLayer(client *arcgis.Client, layerInfo arcgis.AvailableLayer
 		return fmt.Errorf("failed to check output file status %s: %v", outputPath, err)
 	}
 
-	if err := os.MkdirAll(outputDir, 0750); err != nil {
-		return fmt.Errorf("failed to create output directory %s: %v", outputDir, err)
+	if err := os.MkdirAll(config.outputDir, DirPerm); err != nil {
+		return fmt.Errorf("failed to create output directory %s: %v", config.outputDir, err)
 	}
 
-	if err := os.WriteFile(outputPath, []byte(data), 0600); err != nil {
+	if err := os.WriteFile(outputPath, []byte(data), FilePerm); err != nil {
 		return fmt.Errorf("failed to write output file %s: %v", outputPath, err)
 	}
 
